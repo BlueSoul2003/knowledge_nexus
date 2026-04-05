@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FP Physics | 第一性原理物理實驗室</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #0f172a; color: #f8fafc; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
+        #canvas-container { position: relative; width: 100%; height: 100vh; display: flex; }
+        canvas { display: block; touch-action: none; }
+        
+        .control-panel, .lab-panel, .inventory-panel { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease; }
+        .panel-hidden { transform: translateX(120%); opacity: 0; pointer-events: none; }
+        .lab-hidden { transform: translateX(-120%); opacity: 0; pointer-events: none; }
+        .inventory-hidden { transform: translateY(120%); opacity: 0; pointer-events: none; }
+        
+        .control-panel { position: absolute; top: 20px; right: 20px; width: 320px; background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); max-height: calc(100vh - 40px); overflow-y: auto; z-index: 40; }
+        .lab-panel { position: absolute; top: 0; left: 0; height: 100%; width: 320px; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); border-right: 1px solid rgba(255,255,255,0.1); padding: 24px; overflow-y: auto; z-index: 45; box-shadow: 25px 0 50px -12px rgba(0, 0, 0, 0.5); }
+        .inventory-panel { position: absolute; bottom: 80px; right: 24px; width: 320px; max-height: 60vh; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; display: flex; flex-direction: column; z-index: 50; box-shadow: 0 -10px 50px -12px rgba(0, 0, 0, 0.5); }
+
+        .btn { background: #3b82f6; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 500; cursor: pointer; transition: all 0.2s; border: none; width: 100%; margin-bottom: 10px; }
+        .btn:hover { background: #2563eb; }
+        .btn-outline { background: transparent; border: 1px solid #475569; }
+        .btn-outline:hover { background: rgba(71, 85, 105, 0.5); }
+        input[type=range] { width: 100%; accent-color: #3b82f6; }
+
+        .lab-step { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; cursor: pointer; }
+        .lab-step input[type="checkbox"] { margin-top: 4px; accent-color: #4f46e5; width: 16px; height: 16px; cursor: pointer; }
+        .lab-step span { font-size: 0.875rem; color: #cbd5e1; line-height: 1.4; transition: color 0.2s; }
+        .lab-step input[type="checkbox"]:checked + span { color: #64748b; text-decoration: line-through; }
+        
+        .formula-card { transition: all 0.3s ease; }
+        .formula-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.2); border-color: #818cf8; }
+        .formula-collected { animation: collectPop 0.5s ease forwards; pointer-events: none; }
+        @keyframes collectPop { 0% { transform: scale(1); } 50% { transform: scale(0.95); opacity: 0.8; } 100% { transform: scale(0); opacity: 0; height: 0; margin: 0; padding: 0; border: none; } }
+
+        .exp-popup { position: absolute; animation: floatUp 1.2s ease-out forwards; pointer-events: none; color: #fbbf24; font-weight: 900; z-index: 100; text-shadow: 0 2px 10px rgba(245, 158, 11, 0.5); }
+        @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-60px) scale(1.5); } }
+        .level-up-toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #0f172a; padding: 10px 24px; border-radius: 50px; font-weight: bold; box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.5); z-index: 100; animation: slideDownOut 3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        @keyframes slideDownOut { 0% { transform: translate(-50%, -50px); opacity: 0; } 15% { transform: translate(-50%, 0); opacity: 1; } 85% { transform: translate(-50%, 0); opacity: 1; } 100% { transform: translate(-50%, -50px); opacity: 0; } }
+
+        .btn-recording { background: #475569; color: white; animation: pulse 2s infinite; border: none; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        .bar-wrapper { width: 100%; height: 80px; background: rgba(255,255,255,0.05); border-radius: 4px; position: relative; overflow: hidden; }
+        .bar { position: absolute; bottom: 0; width: 100%; transition: height 0.05s linear; border-radius: 4px; }
+        #bar-ke { background: linear-gradient(to top, #10b981, #34d399); }
+        #bar-pe { background: linear-gradient(to top, #3b82f6, #60a5fa); }
+        #bar-te { background: linear-gradient(to top, #f59e0b, #fbbf24); }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container">
+    <canvas id="simCanvas"></canvas>
+    
+    <!-- 1. 左側：實驗手冊系統 -->
+    <button id="btn-lab-toggle" class="fixed top-4 left-4 z-50 bg-indigo-600 text-white px-4 py-2.5 rounded-lg shadow-lg hover:bg-indigo-500 transition-all font-medium flex items-center gap-2 border border-indigo-500">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg> 實驗手冊
+    </button>
+    
+    <div id="lab-panel" class="lab-panel lab-hidden">
+        <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-4 mt-12">
+            <h2 class="text-xl font-bold text-white">引導式實驗</h2>
+            <button id="btn-lab-close" class="text-slate-400 hover:text-white"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+        </div>
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-slate-400 mb-2">選擇實驗模組：</label>
+            <select id="lab-selector" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg p-2.5 outline-none text-sm">
+                <option value="0">--- 自由沙盒模式 ---</option>
+                <option value="1">實驗一：測量未知星球重力</option>
+                <option value="2">實驗二：大角度非線性修正</option>
+                <option value="3">實驗三：阻尼與能量耗散</option>
+            </select>
+        </div>
+        <div id="lab-content-area" class="hidden">
+            <h3 id="lab-title" class="text-lg font-bold text-indigo-300 mb-2"></h3>
+            <p id="lab-desc" class="text-sm text-slate-400 mb-4 leading-relaxed"></p>
+            <div id="lab-formula-container" class="mb-6"></div>
+            <h4 class="text-sm font-semibold text-white mb-3 uppercase">實操步驟</h4>
+            <div id="lab-steps" class="flex flex-col gap-1"></div>
+            <div class="mt-8 p-4 bg-indigo-900/30 border border-indigo-500/30 rounded-lg">
+                <h4 class="text-xs font-bold text-indigo-400 mb-1">💡 分析提示</h4>
+                <p id="lab-tip" class="text-xs text-slate-300 leading-relaxed"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. 右側：控制面板系統 (含齒輪按鈕) -->
+    <button id="btn-panel-toggle" class="fixed top-4 right-4 z-50 bg-slate-800 text-slate-300 p-2.5 rounded-full border border-slate-600 shadow-lg hover:bg-slate-700 hover:text-white transition-all">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+    </button>
+    
+    <div id="control-panel" class="control-panel panel-hidden">
+        <h2 class="text-xl font-bold text-white mb-4 border-b border-slate-600 pb-2">单摆控制台</h2>
+        
+        <!-- 物理參數滑塊 -->
+        <div class="mb-4">
+            <div class="flex justify-between text-sm text-slate-300 mb-1"><span>摆长</span> <span id="val-length">1.5 m</span></div>
+            <input type="range" id="slider-length" min="0.5" max="2.5" step="0.1" value="1.5">
+            <div class="flex justify-between text-sm text-slate-300 mt-2 mb-1"><span>质量</span> <span id="val-mass">1.0 kg</span></div>
+            <input type="range" id="slider-mass" min="0.1" max="5.0" step="0.1" value="1.0">
+            <div class="flex justify-between text-sm text-slate-300 mt-2 mb-1"><span>重力</span> <span id="val-gravity">9.81 m/s²</span></div>
+            <input type="range" id="slider-gravity" min="1.62" max="20" step="0.01" value="9.81">
+            <div class="flex justify-between text-sm text-slate-300 mt-2 mb-1"><span>阻尼</span> <span id="val-damping">0.05</span></div>
+            <input type="range" id="slider-damping" min="0" max="1" step="0.01" value="0.05">
+        </div>
+
+        <!-- 測量工具與秒錶 -->
+        <div class="mb-4 bg-slate-800/60 p-3 rounded-lg border border-slate-600">
+            <h3 class="text-sm font-semibold text-emerald-400 mb-3">測量工具 (Tools)</h3>
+            <label class="flex items-center justify-between cursor-pointer mb-3">
+                <span class="text-sm text-slate-300">顯示角度尺 (Protractor)</span>
+                <div class="relative">
+                    <input type="checkbox" id="toggle-protractor" class="sr-only">
+                    <div id="protractor-bg" class="block bg-slate-700 w-10 h-6 rounded-full transition-colors"></div>
+                    <div id="protractor-dot" class="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-300"></div>
+                </div>
+            </label>
+            <div class="bg-slate-950 border border-slate-700 rounded p-2 mb-2 flex justify-center text-emerald-400 font-mono text-2xl font-bold"><span id="stopwatch-display">00:00.00</span></div>
+            <div class="flex gap-2"><button id="btn-sw-toggle" class="btn !bg-slate-700 text-xs flex-1 !mb-0">啟動</button><button id="btn-sw-reset" class="btn btn-outline text-xs flex-1 !mb-0">歸零</button></div>
+        </div>
+
+        <div class="flex gap-2 mt-2 mb-4">
+            <button id="btn-toggle" class="btn flex-1 !mb-0">暂停 (Pause)</button>
+            <button id="btn-reset" class="btn btn-outline flex-1 !mb-0">重置</button>
+        </div>
+
+        <!-- DAQ 模組 -->
+        <div class="bg-slate-800/40 p-3 rounded-lg border border-slate-600">
+            <h3 class="text-sm font-semibold text-slate-300 mb-2">數據採集 (DAQ)</h3>
+            <div class="flex gap-2"><button id="btn-record" class="btn bg-red-500 hover:bg-red-600 text-xs flex-1 !mb-0">🔴 錄製</button><button id="btn-export" class="btn btn-outline text-xs flex-1 !mb-0" disabled>💾 匯出</button></div>
+            <div class="text-[10px] text-slate-400 text-right mt-1" id="data-counter">已記錄: 0 筆資料</div>
+            
+            <div class="flex items-end h-[60px] gap-2 mt-3 bg-black/20 p-2 rounded">
+                <div class="flex-1 flex flex-col justify-end h-full"><div class="bar-wrapper"><div id="bar-ke" class="bar bg-gradient-to-t from-emerald-500 to-emerald-400"></div></div></div>
+                <div class="flex-1 flex flex-col justify-end h-full"><div class="bar-wrapper"><div id="bar-pe" class="bar bg-gradient-to-t from-blue-500 to-blue-400"></div></div></div>
+                <div class="flex-1 flex flex-col justify-end h-full"><div class="bar-wrapper"><div id="bar-te" class="bar bg-gradient-to-t from-amber-500 to-amber-400"></div></div></div>
+            </div>
+            <div class="text-[9px] text-slate-400 mt-1 text-center" id="energy-text">KE: 0.0 | PE: 0.0 | TE: 0.0</div>
+        </div>
+    </div>
+
+    <!-- 3. 右下角：圖鑑系統 -->
+    <button id="btn-inventory-toggle" class="fixed bottom-6 right-6 z-40 bg-slate-800 text-amber-400 px-4 py-2.5 rounded-full border border-slate-600 shadow-xl hover:bg-slate-700 transition-all font-medium flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg> 圖鑑 <span id="inventory-badge" class="bg-amber-500 text-slate-900 text-xs font-bold px-2 py-0.5 rounded-full ml-1">0</span>
+    </button>
+    <div id="inventory-panel" class="inventory-panel inventory-hidden">
+        <div class="flex justify-between items-center p-4 border-b border-slate-700">
+            <h2 class="text-lg font-bold text-amber-400">我的物理方程式</h2>
+            <button id="btn-inventory-close" class="text-slate-400 hover:text-white"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+        </div>
+        <div class="px-4 pt-4 pb-3 bg-slate-800/50 border-b border-slate-700">
+            <div class="flex justify-between mb-2 text-xs font-bold text-slate-300"><span>研究員等級</span><span class="bg-amber-500 text-slate-900 px-2 rounded">Lv.<span id="player-level">1</span></span></div>
+            <div class="h-2 bg-slate-900 rounded-full w-full overflow-hidden"><div id="player-exp-fill" class="h-full bg-gradient-to-r from-amber-400 to-yellow-300 w-0"></div></div>
+            <div class="text-[10px] text-amber-400 mt-1 text-right">EXP: <span id="player-exp-text">0</span>%</div>
+        </div>
+        <div id="inventory-list" class="p-4 overflow-y-auto flex-1 flex flex-col gap-3"></div>
+    </div>
+</div>
+
+<!-- 關鍵：載入模組化的主程式 -->
+<script type="module" src="./js/app.js"></script>
+
+</body>
+</html>
