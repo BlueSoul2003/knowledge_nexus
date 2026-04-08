@@ -1,187 +1,171 @@
-import { initRPG, gainExp } from './core_rpg.js';
-import { initStopwatch } from './tool_stopwatch.js';
-import { initDAQ } from './tool_daq.js';
-import { initInventory } from './core_inventory.js';
-import { initSimulation, physicsState } from './sim_pendulum.js';
-import { initLabs } from './ui_labs.js';
+document.addEventListener('DOMContentLoaded', async () => {
+  const filtersContainer = document.getElementById('filters');
+  const modulesGrid = document.getElementById('modulesGrid');
+  
+  // State
+  let modulesData = [];
+  let currentFilter = 'all';
 
-// --- 更新：無痕多國語言翻譯模組 (Headless Wrapper Pattern 修正版) ---
-function initTranslator() {
-    // 1. 建立完全符合我們 UI 風格的自訂下拉選單
-    const translateContainer = document.createElement('div');
-    translateContainer.className = 'fixed bottom-6 left-6 z-50 flex items-center gap-2 bg-slate-800/90 backdrop-blur-md border border-slate-600 px-4 py-2.5 rounded-full shadow-lg hover:border-indigo-500 transition-colors cursor-pointer';
+  // SVG Icons
+  const Icons = {
+    arrowRight: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>`,
+    user: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`
+  };
+
+  // Fetch Data
+  try {
+    const res = await fetch('data/modules.json');
+    if (!res.ok) throw new Error('Failed to load modules config');
+    const data = await res.json();
+    modulesData = data.modules;
     
-    // 使用 Tailwind 打造我們自己的 UI
-    translateContainer.innerHTML = `
-        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg>
-        <select id="custom-lang-selector" class="bg-transparent text-slate-200 text-sm font-medium outline-none cursor-pointer appearance-none text-center">
-            <option value="zh-TW" class="bg-slate-800">繁體中文</option>
-            <option value="ms" class="bg-slate-800">Bahasa Melayu</option>
-            <option value="en" class="bg-slate-800">English</option>
-        </select>
-        <!-- 修正關鍵：絕不能用 display:none。我們將其推到畫面外，確保 Google 會順利渲染它 -->
-        <div id="google_translate_element" style="position: absolute; left: -9999px; z-index: -1; opacity: 0;"></div>
-    `;
-    document.body.appendChild(translateContainer);
+    renderFilters(data.categories);
+    renderModules(modulesData);
+    setupScrollAnimations();
+    setupWizard();
+  } catch (error) {
+    console.error(error);
+    modulesGrid.innerHTML = `
+      <div style="text-align: center; width: 100%; color: var(--text-muted); padding: 3rem;">
+        Failed to load knowledge modules.
+      </div>`;
+  }
 
-    // 2. CSS 徹底封殺 Google 的痕跡 (頂部橫幅、提示框、高亮)，同時保留 KaTeX 保護
-    const style = document.createElement('style');
-    style.innerHTML = `
-        .goog-te-banner-frame.skiptranslate { display: none !important; }
-        body { top: 0px !important; }
-        #goog-gt-tt, .goog-te-balloon-frame { display: none !important; }
-        .goog-text-highlight { background-color: transparent !important; box-shadow: none !important; }
-        .katex, .katex-display { translate: no; }
-    `;
-    document.head.appendChild(style);
+  // Render Category Filters
+  function renderFilters(categories) {
+    filtersContainer.innerHTML = '';
+    categories.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.className = `filter-btn ${cat.id === 'all' ? 'active' : ''}`;
+      btn.dataset.id = cat.id;
+      btn.textContent = cat.name;
+      btn.addEventListener('click', () => handleFilterClick(cat.id, btn));
+      filtersContainer.appendChild(btn);
+    });
+  }
 
-    // 3. Google Translate 初始化
-    window.googleTranslateElementInit = function() {
-        new window.google.translate.TranslateElement({
-            pageLanguage: 'zh-TW', 
-            includedLanguages: 'zh-TW,en,ms', 
-            layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE,
-            autoDisplay: false
-        }, 'google_translate_element');
-    };
+  // Handle Tab Switching
+  function handleFilterClick(categoryId, btnElement) {
+    if (currentFilter === categoryId) return;
+    currentFilter = categoryId;
+    
+    // Update active UI
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btnElement.classList.add('active');
 
-    // 4. 載入腳本
-    const script = document.createElement('script');
-    script.src = "//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
-    script.async = true;
-    document.head.appendChild(script);
+    // Filter Logic
+    const filtered = categoryId === 'all' 
+      ? modulesData 
+      : modulesData.filter(m => m.category === categoryId);
+      
+    // Animate out, then render new
+    const cards = document.querySelectorAll('.module-card');
+    cards.forEach(card => card.classList.add('fading-out'));
+    
+    setTimeout(() => {
+      renderModules(filtered);
+    }, 250); // wait for fade out transition (sync with CSS)
+  }
 
-    // 5. 核心魔法：橋接自訂選單與隱藏的 Google 選單
-    const customSelector = document.getElementById('custom-lang-selector');
-    customSelector.addEventListener('change', (e) => {
-        const lang = e.target.value;
-        const googleSelect = document.querySelector('.goog-te-combo');
-        
-        if (googleSelect) {
-            googleSelect.value = lang;
-            // 修正關鍵：必須開啟 bubbles (事件冒泡)，否則 Google 的 React/Vanilla 監聽器抓不到這個改變
-            googleSelect.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+  // Handle Wizard Filtering
+  function setupWizard() {
+    const btnFindPath = document.getElementById('btnFindPath');
+    if (!btnFindPath) return;
+
+    btnFindPath.addEventListener('click', () => {
+      const role = document.getElementById('roleSelect').value;
+      const interest = document.getElementById('interestSelect').value;
+      
+      // Update UI active filter button based on interest
+      document.querySelectorAll('.filter-btn').forEach(b => {
+        if(b.dataset.id === interest) {
+          b.classList.add('active');
+          currentFilter = interest;
         } else {
-            console.warn("Google Translate widget is not ready yet.");
+          b.classList.remove('active');
         }
+      });
+
+      // Filter Logic
+      const filtered = modulesData.filter(m => {
+        const matchesRole = role === 'all' || (m.roles && m.roles.includes(role));
+        const matchesInterest = interest === 'all' || m.category === interest;
+        return matchesRole && matchesInterest;
+      });
+
+      // Scroll to modules grid
+      document.getElementById('explore').scrollIntoView({ behavior: 'smooth' });
+
+      // Animate out, then render new
+      const cards = document.querySelectorAll('.module-card');
+      cards.forEach(card => card.classList.add('fading-out'));
+      
+      setTimeout(() => {
+        renderModules(filtered);
+      }, 250);
     });
-}
+  }
 
-document.addEventListener('DOMContentLoaded', () => {
-    console.log("FP Physics 系統啟動...");
-
-    // 啟動無痕多國語言翻譯模組
-    initTranslator();
-
-    // 1. 初始化 RPG 系統
-    initRPG({
-        levelText: document.getElementById('player-level'),
-        expFill: document.getElementById('player-exp-fill'),
-        expText: document.getElementById('player-exp-text')
-    });
-
-    // 2. 初始化測量工具與 DAQ
-    initStopwatch(
-        document.getElementById('stopwatch-display'),
-        document.getElementById('btn-sw-toggle'),
-        document.getElementById('btn-sw-reset')
-    );
-    initDAQ({
-        btnRecord: document.getElementById('btn-record'),
-        btnExport: document.getElementById('btn-export'),
-        counter: document.getElementById('data-counter')
-    });
-
-    // 3. 初始化圖鑑 (傳入 gainExp 讓收集公式時可以給經驗值)
-    initInventory({
-        btnToggle: document.getElementById('btn-inventory-toggle'),
-        btnClose: document.getElementById('btn-inventory-close'),
-        panel: document.getElementById('inventory-panel'),
-        list: document.getElementById('inventory-list'),
-        badge: document.getElementById('inventory-badge')
-    }, gainExp);
-
-    // 4. 初始化物理引擎核心
-    initSimulation('simCanvas');
-
-    // 5. 初始化實驗手冊面板 (傳入 physicsState 讓實驗腳本有權限強制修改重力/阻尼)
-    initLabs({
-        btnToggle: document.getElementById('btn-lab-toggle'),
-        btnClose: document.getElementById('btn-lab-close'),
-        panel: document.getElementById('lab-panel'),
-        selector: document.getElementById('lab-selector'),
-        contentArea: document.getElementById('lab-content-area'),
-        title: document.getElementById('lab-title'),
-        desc: document.getElementById('lab-desc'),
-        steps: document.getElementById('lab-steps'),
-        tip: document.getElementById('lab-tip'),
-        formulaContainer: document.getElementById('lab-formula-container')
-    }, physicsState);
-
-    // 6. 綁定控制台滑塊與按鈕，讓 UI 能夠控制物理引擎
-    document.getElementById('slider-length').addEventListener('input', (e) => {
-        physicsState.setLength(parseFloat(e.target.value));
-        document.getElementById('val-length').innerText = e.target.value + ' m';
-    });
+  // Render Grid
+  function renderModules(modulesToRender) {
+    modulesGrid.innerHTML = '';
     
-    document.getElementById('slider-mass').addEventListener('input', (e) => {
-        physicsState.setMass(parseFloat(e.target.value));
-        document.getElementById('val-mass').innerText = e.target.value + ' kg';
-    });
-    
-    document.getElementById('slider-gravity').addEventListener('input', (e) => {
-        physicsState.setGravity(parseFloat(e.target.value));
-        document.getElementById('val-gravity').innerText = e.target.value + ' m/s²';
-    });
-    
-    document.getElementById('slider-damping').addEventListener('input', (e) => {
-        physicsState.setDamping(parseFloat(e.target.value));
-        document.getElementById('val-damping').innerText = e.target.value;
-    });
+    if (modulesToRender.length === 0) {
+      modulesGrid.innerHTML = `
+        <div style="text-align: center; width: 100%; grid-column: 1 / -1; color: var(--text-muted); padding: 3rem;">
+          No modules found for this category yet. Be the first to contribute!
+        </div>`;
+      return;
+    }
 
-    // 角度尺 (Protractor) 開關特效與邏輯
-    document.getElementById('toggle-protractor').addEventListener('change', (e) => {
-        physicsState.setShowProtractor(e.target.checked);
-        const bg = document.getElementById('protractor-bg');
-        const dot = document.getElementById('protractor-dot');
-        if (e.target.checked) {
-            bg.classList.replace('bg-slate-700', 'bg-emerald-500');
-            dot.style.transform = 'translateX(100%)';
-        } else {
-            bg.classList.replace('bg-emerald-500', 'bg-slate-700');
-            dot.style.transform = 'translateX(0)';
+    modulesToRender.forEach((mod, index) => {
+      // Create anchor element acts as the whole card
+      const card = document.createElement('a');
+      card.target = '_blank';
+      
+      if (mod.type === 'markdown') {
+        card.href = `templates/markdown-viewer.html?file=${encodeURIComponent(mod.link)}`;
+      } else if (mod.type === 'video' || mod.type === 'audio') {
+        card.href = `templates/media-player.html?file=${encodeURIComponent(mod.link)}&type=${mod.type}`;
+      } else {
+        card.href = mod.link; // Default HTML external linking
+      }
+      
+      card.className = 'module-card animate-fade-in';
+      card.style.animationDelay = `${index * 0.05}s`;
+      
+      card.innerHTML = `
+        <div class="card-image-wrap">
+          <img src="${mod.thumbnailUrl}" alt="${mod.title} cover" class="card-image" loading="lazy">
+          <div class="card-overlay"></div>
+          <span class="card-badge">${mod.tags[0] || mod.category}</span>
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">${mod.title}</h3>
+          <p class="card-desc">${mod.description}</p>
+          <div class="card-footer">
+            <span class="card-author">${Icons.user} ${mod.author}</span>
+            <span class="card-link">Launch ${Icons.arrowRight}</span>
+          </div>
+        </div>
+      `;
+      modulesGrid.appendChild(card);
+    });
+  }
+
+  // Intersection Observer for scroll animations
+  function setupScrollAnimations() {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '1';
+          entry.target.style.transform = 'translateY(0)';
         }
-    });
+      });
+    }, { threshold: 0.1 });
 
-    // 右側控制台開關邏輯
-    document.getElementById('btn-panel-toggle').addEventListener('click', () => {
-        document.getElementById('control-panel').classList.toggle('panel-hidden');
-        // 手機版互斥顯示：打開右邊時自動隱藏左邊
-        if (window.innerWidth < 768 && !document.getElementById('control-panel').classList.contains('panel-hidden')) {
-            document.getElementById('lab-panel').classList.add('lab-hidden');
-        }
+    document.querySelectorAll('.os-banner, .hero').forEach(el => {
+      observer.observe(el);
     });
-
-    // 暫停與重置按鈕
-    const btnToggle = document.getElementById('btn-toggle');
-    btnToggle.addEventListener('click', () => {
-        let isPaused = physicsState.togglePause();
-        btnToggle.innerText = isPaused ? "繼續 (Resume)" : "暂停 (Pause)";
-        btnToggle.className = isPaused ? "btn bg-emerald-500 hover:bg-emerald-600" : "btn bg-blue-500 hover:bg-blue-600";
-    });
-    
-    document.getElementById('btn-reset').addEventListener('click', () => {
-        physicsState.reset();
-        // 如果目前是暫停狀態，重置時自動恢復播放
-        if (btnToggle.innerText === "繼續 (Resume)") btnToggle.click(); 
-    });
-
-    // 7. 監聽物理引擎每幀發出的事件，即時更新能量柱狀圖
-    window.addEventListener('physicsUpdate', (e) => {
-        const { ke, pe, te, max } = e.detail;
-        document.getElementById('bar-ke').style.height = `${Math.min(100, (ke / max) * 100)}%`;
-        document.getElementById('bar-pe').style.height = `${Math.min(100, (pe / max) * 100)}%`;
-        document.getElementById('bar-te').style.height = `${Math.min(100, (te / max) * 100)}%`;
-        document.getElementById('energy-text').innerText = `KE: ${ke.toFixed(1)}J | PE: ${pe.toFixed(1)}J | TE: ${te.toFixed(1)}J`;
-    });
+  }
 });

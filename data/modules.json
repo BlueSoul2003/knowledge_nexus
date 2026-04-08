@@ -12,13 +12,13 @@
     {
       "id": "pendulum-sim",
       "type": "html",
-      "title": "Double Pendulum Sandbox",
+      "title": "Interactive Physics Laboratory",
       "category": "physics",
       "author": "Core Team",
-      "description": "An interactive environment exploring chaotic motion and Lagrangian mechanics.",
-      "link": "../pendulum.html",
+      "description": "An interactive environment exploring chaotic motion, Lagrangian mechanics, and basic physical laws.",
+      "link": "modules/physics-nexus/index.html",
       "thumbnailUrl": "https://images.unsplash.com/photo-1542204639-651de91c7847?auto=format&fit=crop&q=80&w=800&h=600",
-      "tags": ["Mechanics", "Chaos Theory"],
+      "tags": ["Mechanics", "Labs"],
       "roles": ["researcher", "student", "hobbyist"]
     },
     {

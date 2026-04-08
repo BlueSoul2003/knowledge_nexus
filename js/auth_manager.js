@@ -88,8 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button id="auth-logout-btn" class="text-xs text-slate-400 hover:text-white transition-colors">
                         登出
                     </button>
-                    <a href="dashboard.html" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2 rounded-full font-semibold transition-colors shadow-lg">
-                        資料庫 & 上傳
+                    <a href="#dashboard" onclick="document.getElementById('dashboard').classList.remove('hidden')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2 rounded-full font-semibold transition-colors shadow-lg">
+                        Creator Dashboard
                     </a>
                 </div>
             `;

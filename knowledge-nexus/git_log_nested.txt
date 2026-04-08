@@ -1,5 +1,0 @@
-commit a96f287bc61eebbf90f5b6b3d5b32d8ffbac30da
-Author: Gregory Hong <hong0355945@gmail.com>
-Date:   Fri Apr 3 12:52:09 2026 +0800
-
-    docs: add open source contribution readme
