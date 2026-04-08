@@ -1,0 +1,91 @@
+/* 
+  Knowledge Nexus - Shared Module CSS
+  Use this stylesheet in your standalone modules to maintain consistent branding and dark mode aesthetics.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Core Color Palette */
+  --bg-color: #09090b; /* zinc-950 */
+  --card-bg: #18181b; /* zinc-900 */
+  --card-border: #27272a; /* zinc-800 */
+  --card-hover-border: #3f3f46; /* zinc-700 */
+  
+  --accent-color: #2563eb; /* vibrant blue */
+  --accent-hover: #3b82f6;
+  
+  --text-main: #fafafa;
+  --text-muted: #a1a1aa; /* zinc-400 */
+  
+  /* Typography */
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Work Sans', sans-serif;
+
+  /* Layout */
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --transition-fast: 0.2s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  padding: 2rem; /* Default padding for standalone module view */
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--text-main);
+  margin-bottom: 1rem;
+}
+
+p {
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+/* Common Container for Interactive Modules */
+.module-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* Interactive Canvas Reset (if using WebGL or HTML5 Canvas) */
+canvas {
+  display: block;
+  border-radius: var(--radius-md);
+  margin: 0 auto;
+}
+
+/* Basic Button Styles */
+.btn {
+  background-color: var(--accent-color);
+  color: white;
+  padding: 0.6rem 1.25rem;
+  border-radius: 9999px;
+  border: none;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn:hover {
+  background-color: var(--accent-hover);
+  transform: translateY(-1px);
+}

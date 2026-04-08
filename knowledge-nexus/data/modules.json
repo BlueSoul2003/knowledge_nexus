@@ -1,0 +1,85 @@
+{
+  "categories": [
+    { "id": "all", "name": "All Modules" },
+    { "id": "physics", "name": "Physics" },
+    { "id": "economics", "name": "Economics" },
+    { "id": "business", "name": "Business" },
+    { "id": "psychology", "name": "Psychology" },
+    { "id": "metaphysics", "name": "玄學 (Metaphysics)" },
+    { "id": "tech", "name": "3D Printing & Electronics" }
+  ],
+  "modules": [
+    {
+      "id": "pendulum-sim",
+      "type": "html",
+      "title": "Double Pendulum Sandbox",
+      "category": "physics",
+      "author": "Core Team",
+      "description": "An interactive environment exploring chaotic motion and Lagrangian mechanics.",
+      "link": "../pendulum.html",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1542204639-651de91c7847?auto=format&fit=crop&q=80&w=800&h=600",
+      "tags": ["Mechanics", "Chaos Theory"],
+      "roles": ["researcher", "student", "hobbyist"]
+    },
+    {
+      "id": "macro-econ",
+      "type": "html",
+      "title": "Macro-Econ Flow",
+      "category": "economics",
+      "author": "Community",
+      "description": "Visualizing supply and demand dynamics across global markets.",
+      "link": "#",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&q=80&w=800&h=600",
+      "tags": ["Macro", "Simulation"],
+      "roles": ["researcher", "student"]
+    },
+    {
+      "id": "startup-calc",
+      "type": "html",
+      "title": "Startup Runway Modeler",
+      "category": "business",
+      "author": "Community",
+      "description": "Interactive tools for cash flow forecasting and burn rate analysis.",
+      "link": "#",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&q=80&w=800&h=600",
+      "tags": ["Finance", "Startup"],
+      "roles": ["student", "developer"]
+    },
+    {
+      "id": "cognitive-bias",
+      "type": "markdown",
+      "title": "Cognitive Bias Explorer (Article)",
+      "category": "psychology",
+      "author": "Community",
+      "description": "A deep dive into how our brains trick us into irrational decisions.",
+      "link": "modules/cognitive-bias.md",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1559757148-5c350d0d3c56?auto=format&fit=crop&q=80&w=800&h=600",
+      "tags": ["Behavior", "Mind"],
+      "roles": ["general", "student"]
+    },
+    {
+      "id": "bazi-calc",
+      "type": "audio",
+      "title": "Bazi Elemental Matrix (Podcast)",
+      "category": "metaphysics",
+      "author": "Community",
+      "description": "Calculating the Four Pillars and five elements interactions dynamically.",
+      "link": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1506543730-3cb84db8cd98?auto=format&fit=crop&q=80&w=800&h=600",
+      "tags": ["I_Ching", "Destiny"],
+      "roles": ["general", "hobbyist"]
+    },
+    {
+      "id": "fdm-slicer",
+      "type": "video",
+      "title": "FDM Overhang Visualizer (Demo)",
+      "category": "tech",
+      "author": "Community",
+      "description": "Simulating FDM 3D printing bridges and calculating necessary support structures.",
+      "link": "https://www.w3schools.com/html/mov_bbb.mp4",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1632516447814-22b9c79f98c6?auto=format&fit=crop&q=80&w=800&h=600",
+      "tags": ["3D Print", "Hardware"],
+      "roles": ["developer", "researcher"]
+    }
+  ]
+}
