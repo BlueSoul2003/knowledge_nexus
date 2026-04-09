@@ -29,7 +29,8 @@
       <a href="#about">About</a>
     </div>
     <div style="display: flex; align-items: center; gap: 1rem;">
-      <a href="https://github.com/fp-physics-team/knowledge-nexus" target="_blank" class="btn-primary desktop-only">
+      <a href="https://github.com/BlueSoul2003/knowledge_nexus" target="_blank" class="btn-primary desktop-only" id="github-btn" style="display:flex;align-items:center;gap:0.5rem;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
         GitHub
       </a>
       <div id="auth-container">
@@ -162,40 +163,116 @@
   <script src="js/app.js"></script>
   
   <!-- Login / Register Modal -->
-  <div id="auth-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center text-left font-sans text-main">
-      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="document.getElementById('auth-modal').classList.add('hidden')"></div>
+  <div id="auth-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center text-left font-sans" style="align-items:center;justify-content:center;">
+      <div class="absolute inset-0" style="background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);" onclick="document.getElementById('auth-modal').classList.add('hidden')"></div>
       
-      <div class="relative bg-zinc-900 w-full max-w-md mx-4 rounded-2xl border border-zinc-700 p-8 shadow-2xl">
-          <button onclick="document.getElementById('auth-modal').classList.add('hidden')" class="absolute top-4 right-4 text-zinc-400 hover:text-white" style="background:none; border:none; cursor:pointer; font-size:1.5rem;">&times;</button>
-          
-          <div class="text-center mb-6">
-              <h3 class="text-2xl font-bold text-white mb-2" id="auth-modal-title">Log In</h3>
-              <p class="text-zinc-400 text-sm">Join the open sandbox ecosystem</p>
+      <div class="relative w-full mx-4" style="max-width:480px;background:#111827;border:1px solid #374151;border-radius:1.25rem;padding:2rem;box-shadow:0 25px 60px rgba(0,0,0,0.6);max-height:90vh;overflow-y:auto;">
+          <!-- Close -->
+          <button onclick="document.getElementById('auth-modal').classList.add('hidden')" style="position:absolute;top:1rem;right:1rem;background:none;border:none;cursor:pointer;color:#9ca3af;font-size:1.5rem;line-height:1;" aria-label="Close">&times;</button>
+
+          <!-- Header -->
+          <div style="text-align:center;margin-bottom:1.5rem;">
+            <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);margin:0 auto 0.75rem;display:flex;align-items:center;justify-content:center;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <h3 class="text-white" style="font-size:1.5rem;font-weight:700;margin:0 0 0.25rem;">Knowledge Nexus</h3>
+            <p style="color:#9ca3af;font-size:0.85rem;margin:0;">Join the open sandbox ecosystem</p>
           </div>
 
-          <form id="auth-form" class="space-y-4">
-              <div class="mb-4">
-                  <label class="block text-sm font-medium text-zinc-300 mb-1">Email</label>
-                  <input type="email" id="auth-email" required class="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500">
-              </div>
-              <div class="mb-4 mt-4">
-                  <label class="block text-sm font-medium text-zinc-300 mb-1">Password</label>
-                  <input type="password" id="auth-password" required class="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500">
-              </div>
-              
-              <div class="pt-4 mt-6">
-                  <button type="submit" id="auth-submit-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 rounded-lg transition-colors" style="border:none; cursor:pointer;">
-                      Login
-                  </button>
-              </div>
-          </form>
-          
-          <div class="mt-6 text-center text-sm text-zinc-400">
-              <span id="auth-toggle-text">Don't have an account?</span>
-              <button type="button" id="auth-toggle-btn" class="text-blue-400 hover:text-blue-300 font-medium ml-1" style="background:none; border:none; cursor:pointer;">
-                  Sign Up
-              </button>
+          <!-- Tabs -->
+          <div style="display:flex;background:#1f2937;border-radius:0.75rem;padding:4px;margin-bottom:1.5rem;">
+            <button id="tab-login" onclick="window.authSwitchTab('login')" style="flex:1;padding:0.6rem 1rem;border:none;border-radius:0.6rem;cursor:pointer;font-weight:600;font-size:0.9rem;transition:all 0.2s;background:#3b82f6;color:white;">Login</button>
+            <button id="tab-register" onclick="window.authSwitchTab('register')" style="flex:1;padding:0.6rem 1rem;border:none;border-radius:0.6rem;cursor:pointer;font-weight:600;font-size:0.9rem;transition:all 0.2s;background:transparent;color:#9ca3af;">Register</button>
           </div>
+
+          <!-- Login Form -->
+          <form id="login-form" class="space-y-4">
+            <div style="margin-bottom:1rem;">
+              <label style="display:block;font-size:0.85rem;font-weight:500;color:#d1d5db;margin-bottom:0.4rem;">Email Address</label>
+              <input type="email" id="login-email" required placeholder="you@example.com"
+                style="width:100%;background:#0f172a;border:1px solid #374151;border-radius:0.6rem;padding:0.65rem 1rem;color:white;outline:none;font-size:0.9rem;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:1.25rem;">
+              <label style="display:block;font-size:0.85rem;font-weight:500;color:#d1d5db;margin-bottom:0.4rem;">Password</label>
+              <input type="password" id="login-password" required placeholder="••••••••"
+                style="width:100%;background:#0f172a;border:1px solid #374151;border-radius:0.6rem;padding:0.65rem 1rem;color:white;outline:none;font-size:0.9rem;box-sizing:border-box;">
+            </div>
+            <div id="login-error" style="display:none;color:#f87171;font-size:0.82rem;background:#450a0a;border:1px solid #7f1d1d;border-radius:0.5rem;padding:0.6rem 0.8rem;margin-bottom:0.75rem;"></div>
+            <button type="submit" id="login-submit-btn"
+              style="width:100%;background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;border-radius:0.6rem;padding:0.75rem;color:white;font-weight:600;font-size:1rem;cursor:pointer;transition:opacity 0.2s;">
+              Sign In
+            </button>
+          </form>
+
+          <!-- Register Form -->
+          <form id="register-form" style="display:none;" class="space-y-4">
+            <!-- Row 1: Full Name -->
+            <div style="margin-bottom:1rem;">
+              <label style="display:block;font-size:0.85rem;font-weight:500;color:#d1d5db;margin-bottom:0.4rem;">Full Name <span style="color:#f87171;">*</span></label>
+              <input type="text" id="reg-name" required placeholder="Your full name"
+                style="width:100%;background:#0f172a;border:1px solid #374151;border-radius:0.6rem;padding:0.65rem 1rem;color:white;outline:none;font-size:0.9rem;box-sizing:border-box;">
+            </div>
+            <!-- Row 2: Email -->
+            <div style="margin-bottom:1rem;">
+              <label style="display:block;font-size:0.85rem;font-weight:500;color:#d1d5db;margin-bottom:0.4rem;">Email Address <span style="color:#f87171;">*</span></label>
+              <input type="email" id="reg-email" required placeholder="you@example.com"
+                style="width:100%;background:#0f172a;border:1px solid #374151;border-radius:0.6rem;padding:0.65rem 1rem;color:white;outline:none;font-size:0.9rem;box-sizing:border-box;">
+            </div>
+            <!-- Row 3: Password -->
+            <div style="margin-bottom:1rem;">
+              <label style="display:block;font-size:0.85rem;font-weight:500;color:#d1d5db;margin-bottom:0.4rem;">Password <span style="color:#f87171;">*</span></label>
+              <input type="password" id="reg-password" required placeholder="Min. 6 characters"
+                style="width:100%;background:#0f172a;border:1px solid #374151;border-radius:0.6rem;padding:0.65rem 1rem;color:white;outline:none;font-size:0.9rem;box-sizing:border-box;">
+            </div>
+            <!-- Row 4: Phone -->
+            <div style="margin-bottom:1rem;">
+              <label style="display:block;font-size:0.85rem;font-weight:500;color:#d1d5db;margin-bottom:0.4rem;">Phone Number</label>
+              <input type="tel" id="reg-phone" placeholder="e.g. 01X-XXXXXXX"
+                style="width:100%;background:#0f172a;border:1px solid #374151;border-radius:0.6rem;padding:0.65rem 1rem;color:white;outline:none;font-size:0.9rem;box-sizing:border-box;">
+            </div>
+            <!-- Row 5: Age + Gender -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+              <div>
+                <label style="display:block;font-size:0.85rem;font-weight:500;color:#d1d5db;margin-bottom:0.4rem;">Age</label>
+                <input type="number" id="reg-age" min="10" max="99" placeholder="e.g. 17"
+                  style="width:100%;background:#0f172a;border:1px solid #374151;border-radius:0.6rem;padding:0.65rem 1rem;color:white;outline:none;font-size:0.9rem;box-sizing:border-box;">
+              </div>
+              <div>
+                <label style="display:block;font-size:0.85rem;font-weight:500;color:#d1d5db;margin-bottom:0.4rem;">Gender</label>
+                <select id="reg-gender"
+                  style="width:100%;background:#0f172a;border:1px solid #374151;border-radius:0.6rem;padding:0.65rem 1rem;color:white;outline:none;font-size:0.9rem;box-sizing:border-box;">
+                  <option value="">Prefer not to say</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+            <!-- Row 6: Syllabus -->
+            <div style="margin-bottom:1.25rem;">
+              <label style="display:block;font-size:0.85rem;font-weight:500;color:#d1d5db;margin-bottom:0.4rem;">Syllabus / Programme</label>
+              <select id="reg-syllabus"
+                style="width:100%;background:#0f172a;border:1px solid #374151;border-radius:0.6rem;padding:0.65rem 1rem;color:white;outline:none;font-size:0.9rem;box-sizing:border-box;">
+                <option value="">Select your syllabus</option>
+                <option value="SPM">SPM (Malaysia)</option>
+                <option value="STPM">STPM (Malaysia)</option>
+                <option value="A-Level">A-Level</option>
+                <option value="IB">IB Diploma</option>
+                <option value="IGCSE">IGCSE / O-Level</option>
+                <option value="undergraduate">Undergraduate</option>
+                <option value="postgraduate">Postgraduate</option>
+                <option value="other">Other / Self-learner</option>
+              </select>
+            </div>
+            <div id="reg-error" style="display:none;color:#f87171;font-size:0.82rem;background:#450a0a;border:1px solid #7f1d1d;border-radius:0.5rem;padding:0.6rem 0.8rem;margin-bottom:0.75rem;"></div>
+            <div id="reg-success" style="display:none;color:#34d399;font-size:0.82rem;background:#022c22;border:1px solid #065f46;border-radius:0.5rem;padding:0.6rem 0.8rem;margin-bottom:0.75rem;"></div>
+            <button type="submit" id="reg-submit-btn"
+              style="width:100%;background:linear-gradient(135deg,#8b5cf6,#7c3aed);border:none;border-radius:0.6rem;padding:0.75rem;color:white;font-weight:600;font-size:1rem;cursor:pointer;transition:opacity 0.2s;">
+              Create Account
+            </button>
+          </form>
+
+          <p style="text-align:center;font-size:0.78rem;color:#6b7280;margin-top:1.25rem;">By continuing, you agree to our Terms of Service.</p>
       </div>
   </div>
 
