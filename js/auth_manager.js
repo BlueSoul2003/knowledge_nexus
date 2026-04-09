@@ -11,22 +11,16 @@ window.authSwitchTab = function (tab) {
 
     if (!loginForm || !registerForm) return;
 
-    const activeStyle   = 'background:#3b82f6;color:white;';
-    const inactiveStyle = 'background:transparent;color:#9ca3af;';
-
     if (tab === 'login') {
-        loginForm.style.display    = '';
-        registerForm.style.display = 'none';
-        tabLogin.style.cssText    += activeStyle;
-        tabRegister.style.cssText += inactiveStyle;
-        // Reset tab button inline styles cleanly
+        loginForm.style.display      = '';
+        registerForm.style.display   = 'none';
         tabLogin.style.background    = '#3b82f6';
         tabLogin.style.color         = 'white';
         tabRegister.style.background = 'transparent';
         tabRegister.style.color      = '#9ca3af';
     } else {
-        loginForm.style.display    = 'none';
-        registerForm.style.display = '';
+        loginForm.style.display      = 'none';
+        registerForm.style.display   = '';
         tabLogin.style.background    = 'transparent';
         tabLogin.style.color         = '#9ca3af';
         tabRegister.style.background = '#8b5cf6';
@@ -37,14 +31,14 @@ window.authSwitchTab = function (tab) {
 // ─────────────────────────────────────────────
 //  Helpers
 // ─────────────────────────────────────────────
-function showError(elementId, msg) {
+function showMsg(elementId, msg, isError = true) {
     const el = document.getElementById(elementId);
     if (!el) return;
     el.textContent = msg;
     el.style.display = 'block';
 }
 
-function hideError(elementId) {
+function hideMsg(elementId) {
     const el = document.getElementById(elementId);
     if (el) el.style.display = 'none';
 }
@@ -65,7 +59,6 @@ async function renderAuthNav(session) {
     if (!authContainer) return;
 
     if (session) {
-        // Try to get display name from user_profiles
         let displayName = session.user.email.split('@')[0];
         try {
             const { data: profile } = await supabase
@@ -74,7 +67,7 @@ async function renderAuthNav(session) {
                 .eq('id', session.user.id)
                 .single();
             if (profile?.full_name) displayName = profile.full_name.split(' ')[0];
-        } catch (_) { /* silently ignore */ }
+        } catch (_) { /* ignore */ }
 
         const initials = displayName.substring(0, 2).toUpperCase();
 
@@ -96,7 +89,7 @@ async function renderAuthNav(session) {
             </div>
         `;
 
-        document.getElementById('auth-logout-btn').addEventListener('click', async () => {
+        document.getElementById('auth-logout-btn')?.addEventListener('click', async () => {
             await supabase.auth.signOut();
         });
 
@@ -111,49 +104,52 @@ async function renderAuthNav(session) {
 }
 
 // ─────────────────────────────────────────────
-//  Upsert demographics to user_profiles
+//  Write / update profile row in user_profiles
 // ─────────────────────────────────────────────
 async function upsertProfile(userId, email, extras = {}) {
-    const payload = {
-        id: userId,
-        email: email,
-        updated_at: new Date().toISOString(),
-        ...extras
-    };
-
-    // Remove undefined/empty values so we don't overwrite existing data with blanks
+    // Build payload — strip out null/empty so we don't overwrite existing data
+    const payload = { id: userId, email, updated_at: new Date().toISOString(), ...extras };
     Object.keys(payload).forEach(k => {
         if (payload[k] === '' || payload[k] === null || payload[k] === undefined) {
             delete payload[k];
         }
     });
 
-    const { error } = await supabase
-        .from('user_profiles')
-        .upsert(payload, { onConflict: 'id' });
+    console.log('[upsertProfile] Writing to user_profiles:', payload);
 
-    if (error) console.warn('Profile upsert warning:', error.message);
+    const { data, error } = await supabase
+        .from('user_profiles')
+        .upsert(payload, { onConflict: 'id' })
+        .select(); // .select() forces the response to return the upserted row
+
+    if (error) {
+        console.error('[upsertProfile] FAILED:', error);
+        throw error; // Re-throw so the caller can show it to the user
+    }
+
+    console.log('[upsertProfile] Success:', data);
+    return data;
 }
 
 // ─────────────────────────────────────────────
-//  Bootstrap on DOM ready
+//  Bootstrap
 // ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     const loginForm    = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
 
-    if (!loginForm && !registerForm) return; // Not on a page with the auth modal
+    if (!loginForm && !registerForm) return;
 
-    // ── Login form submit ──────────────────────────
+    // ── Login ───────────────────────────────────
     loginForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        hideError('login-error');
+        hideMsg('login-error');
 
         const email    = document.getElementById('login-email').value.trim();
         const password = document.getElementById('login-password').value;
 
         if (!email || !password) {
-            showError('login-error', 'Please fill in all fields.');
+            showMsg('login-error', 'Please fill in all fields.');
             return;
         }
 
@@ -163,22 +159,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const { data, error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) throw error;
 
-            // Close modal & reset
             document.getElementById('auth-modal').classList.add('hidden');
             loginForm.reset();
 
         } catch (err) {
-            showError('login-error', err.message || 'Login failed. Check your credentials.');
+            console.error('[Login] Error:', err);
+            showMsg('login-error', err.message || 'Login failed. Please check your credentials.');
         } finally {
             setButtonLoading('login-submit-btn', false, 'Sign In');
         }
     });
 
-    // ── Register form submit ───────────────────────
+    // ── Register ────────────────────────────────
     registerForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        hideError('reg-error');
-        hideError('reg-success');
+        hideMsg('reg-error');
+        hideMsg('reg-success');
 
         const name     = document.getElementById('reg-name').value.trim();
         const email    = document.getElementById('reg-email').value.trim();
@@ -188,35 +184,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const gender   = document.getElementById('reg-gender').value;
         const syllabus = document.getElementById('reg-syllabus').value;
 
+        // Validation
         if (!name || !email || !password) {
-            showError('reg-error', 'Full Name, Email, and Password are required.');
+            showMsg('reg-error', 'Full Name, Email and Password are required.');
             return;
         }
         if (password.length < 6) {
-            showError('reg-error', 'Password must be at least 6 characters.');
+            showMsg('reg-error', 'Password must be at least 6 characters.');
             return;
         }
 
         setButtonLoading('reg-submit-btn', true, 'Create Account');
+        console.log('[Register] Attempting signup for:', email);
 
         try {
-            const { data, error } = await supabase.auth.signUp({
+            // Step 1 — Create auth user
+            const { data, error: signUpError } = await supabase.auth.signUp({
                 email,
                 password,
                 options: {
-                    data: {
+                    data: {              // stored in auth.users.raw_user_meta_data
                         full_name: name,
-                        phone:     phone || null,
-                        age:       age   ? parseInt(age) : null,
-                        gender:    gender  || null,
+                        phone:     phone    || null,
+                        age:       age      ? parseInt(age) : null,
+                        gender:    gender   || null,
                         syllabus:  syllabus || null,
                     }
                 }
             });
-            if (error) throw error;
 
-            // Upsert profile row immediately (works even before email confirmation
-            // since the user row exists in auth.users and the trigger may have run)
+            if (signUpError) throw signUpError;
+            console.log('[Register] Auth signUp result:', data);
+
+            // Step 2 — Write demographics to user_profiles
+            // data.user is available immediately even if email confirmation is required
             if (data.user) {
                 await upsertProfile(data.user.id, email, {
                     full_name: name,
@@ -227,33 +228,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     exp:       0,
                     role:      'user',
                 });
+            } else {
+                // This happens when email confirmation is disabled but the user already exists
+                console.warn('[Register] No user object in signUp response — user may already exist.');
+                showMsg('reg-error', 'This email may already be registered. Try logging in instead.');
+                return;
             }
 
-            const successEl = document.getElementById('reg-success');
-            if (successEl) {
-                successEl.textContent = '✅ Account created! Check your email to verify (if required), then log in.';
-                successEl.style.display = 'block';
-            }
+            // Step 3 — Show success
+            showMsg('reg-success',
+                '✅ Account created! ' +
+                (data.session ? 'You are now logged in.' : 'Please check your email to confirm, then log in.')
+            );
             registerForm.reset();
 
-            // Auto-switch to login tab after 2.5s
+            // Auto-switch to Login tab after 2.5s
             setTimeout(() => window.authSwitchTab('login'), 2500);
 
         } catch (err) {
-            showError('reg-error', err.message || 'Registration failed. Please try again.');
+            console.error('[Register] Error:', err);
+            showMsg('reg-error', err.message || 'Registration failed. Please try again.');
         } finally {
             setButtonLoading('reg-submit-btn', false, 'Create Account');
         }
     });
 
-    // ── Listen for auth state changes ─────────────
-    // Supabase automatically persists the session in localStorage,
-    // so this fires on page load if the user was previously logged in.
+    // ── Auth state listener ─────────────────────
+    // Fires on page load if a session exists in localStorage (remembered login)
     supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('[AuthState]', event, session?.user?.email ?? 'no user');
         await renderAuthNav(session);
 
-        // On sign-in, also ensure EXP shows in dashboard
-        if (session && event === 'SIGNED_IN') {
+        // Update EXP counter in dashboard
+        if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
             try {
                 const { data: profile } = await supabase
                     .from('user_profiles')
