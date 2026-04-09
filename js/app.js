@@ -1,3 +1,5 @@
+import { supabase } from './supabase_client.js';
+
 document.addEventListener('DOMContentLoaded', async () => {
   const filtersContainer = document.getElementById('filters');
   const modulesGrid = document.getElementById('modulesGrid');
@@ -17,7 +19,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     const res = await fetch('data/modules.json');
     if (!res.ok) throw new Error('Failed to load modules config');
     const data = await res.json();
-    modulesData = data.modules;
+    let staticModules = data.modules || [];
+    
+    // Fetch public/approved modules from Supabase
+    const { data: dbData, error } = await supabase
+        .from('files')
+        .select('*')
+        .eq('is_public', true)
+        .eq('is_approved', true);
+        
+    let dynamicModules = [];
+    if (!error && dbData) {
+        dynamicModules = dbData.map(file => ({
+            id: file.id,
+            type: file.file_type || 'html',
+            title: file.title || file.filename,
+            category: file.category || 'misc',
+            author: file.owner_id ? 'Community Member' : 'Community', // ideally fetch author name, but simplify for now
+            description: file.description || '',
+            link: file.file_url,
+            thumbnailUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&q=80&w=800&h=600', // Default fallback
+            tags: file.tags || [],
+            roles: ['general']
+        }));
+    }
+
+    modulesData = [...staticModules, ...dynamicModules];
     
     renderFilters(data.categories);
     renderModules(modulesData);

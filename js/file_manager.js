@@ -6,6 +6,7 @@ class FileManager {
         this.bucketName = 'user_files';
         this.initEventListeners();
         this.fetchMyFiles();
+        this.checkAdminAndInit();
     }
 
     initEventListeners() {
@@ -35,18 +36,23 @@ class FileManager {
         const fileInput = document.getElementById('file-input');
         const uploadBtn = document.getElementById('upload-btn');
         const file = fileInput.files[0];
+        
+        const titleVal = document.getElementById('upload-title')?.value.trim();
+        const descVal = document.getElementById('upload-desc')?.value.trim();
+        const catVal = document.getElementById('upload-category')?.value;
+        const tagsVal = document.getElementById('upload-tags')?.value.trim();
 
-        if (!file) {
-            alert('請先選擇檔案');
+        if (!file || !titleVal || !catVal) {
+            alert('Please select a file, provide a title, and select a category.');
             return;
         }
 
         try {
             uploadBtn.disabled = true;
-            uploadBtn.textContent = '上傳中...';
+            uploadBtn.textContent = 'Uploading...';
 
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('請先登入！');
+            if (!user) throw new Error('Please login first!');
 
             // Generate Path: userId/timestamp_filename
             const filePath = `${user.id}/${Date.now()}_${file.name}`;
@@ -63,12 +69,27 @@ class FileManager {
                 .from(this.bucketName)
                 .getPublicUrl(filePath);
 
+            // parse tags
+            const tagsArray = tagsVal ? tagsVal.split(',').map(t => t.trim()).filter(Boolean) : [];
+            // determine extension type trivially
+            const ext = file.name.split('.').pop().toLowerCase();
+            let fileTypeStr = 'html';
+            if (ext === 'md') fileTypeStr = 'markdown';
+            if (ext === 'mp4') fileTypeStr = 'video';
+            if (ext === 'mp3') fileTypeStr = 'audio';
+
             // Record in files table
             const { error: dbError } = await supabase.from('files').insert({
                 owner_id: user.id,
                 filename: file.name,
                 file_url: publicData.publicUrl,
-                is_public: true
+                is_public: true,
+                title: titleVal,
+                description: descVal,
+                category: catVal,
+                tags: tagsArray,
+                file_type: fileTypeStr,
+                is_approved: false
             });
 
             if (dbError) console.error('Error saving file record:', dbError);
@@ -76,19 +97,20 @@ class FileManager {
             // Add EXP / Track Action
             await trackActivity(user.id, 'upload_file', 10);
 
-            alert('上傳成功！你獲得了 10 EXP。');
+            alert('Upload successful! It will be visible on the main page once approved by an Admin.');
             
             // Reset state
             document.getElementById('upload-form').reset();
             document.getElementById('file-selected-name').classList.add('hidden');
             await this.fetchMyFiles();
+            await this.fetchPendingFiles(); // refresh admin view just in case
 
         } catch (error) {
             console.error(error);
-            alert('上傳失敗: ' + error.message);
+            alert('Upload failed: ' + error.message);
         } finally {
             uploadBtn.disabled = false;
-            uploadBtn.textContent = '開始上傳';
+            uploadBtn.textContent = 'Submit to Nexus';
         }
     }
 
@@ -137,7 +159,87 @@ class FileManager {
 
         } catch (error) {
             console.error('Error fetching files:', error);
-            container.innerHTML = '<div class="text-center py-10 text-red-500">載入失敗</div>';
+            container.innerHTML = '<div class="text-center py-10 text-red-500">Failed to load files</div>';
+        }
+    }
+
+    async checkAdminAndInit() {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            
+            const { data: profile } = await supabase
+                .from('user_profiles')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+                
+            if (profile && profile.role === 'admin') {
+                const adminPanel = document.getElementById('admin-approval-panel');
+                if (adminPanel) adminPanel.classList.remove('hidden');
+                this.fetchPendingFiles();
+            }
+        } catch(e) {
+            console.error('Admin check failed:', e);
+        }
+    }
+
+    async fetchPendingFiles() {
+        const container = document.getElementById('admin-pending-list');
+        if (!container) return;
+
+        try {
+            const { data: files, error } = await supabase
+                .from('files')
+                .select('*')
+                .eq('is_approved', false)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            if (!files || files.length === 0) {
+                container.innerHTML = '<div class="text-center py-6 text-zinc-500 text-sm">No pending files securely identified.</div>';
+                return;
+            }
+
+            container.innerHTML = files.map(file => `
+                <div class="bg-zinc-800/50 rounded-xl p-4 flex justify-between items-center border border-rose-900/40">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="p-2 bg-rose-900/20 rounded-lg text-rose-300">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        </div>
+                        <div class="truncate">
+                            <h4 class="text-white font-medium text-sm truncate" title="${file.title || file.filename}">${file.title || file.filename} <span class="text-xs ml-1 bg-zinc-700 px-1.5 py-0.5 rounded text-zinc-300">${file.category || 'misc'}</span></h4>
+                            <span class="text-xs text-zinc-500">${file.description || ''}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                         <a href="${file.file_url}" target="_blank" class="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition" title="Preview">Preview</a>
+                         <button onclick="if(window.fileManager) window.fileManager.approveFile('${file.id}')" class="text-xs px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition" title="Approve">Approve</button>
+                    </div>
+                </div>
+            `).join('');
+
+        } catch (error) {
+            console.error('Error fetching pending files:', error);
+            container.innerHTML = '<div class="text-center py-4 text-red-500">Error loading pending files</div>';
+        }
+    }
+
+    async approveFile(fileId) {
+        if (!confirm('Are you sure you want to approve this module to be visible to the public?')) return;
+        try {
+            const { error } = await supabase
+                .from('files')
+                .update({ is_approved: true })
+                .eq('id', fileId);
+            
+            if (error) throw error;
+            alert('File approved successfully.');
+            this.fetchPendingFiles();
+        } catch (error) {
+            console.error('Error approving file:', error);
+            alert('Approval failed: ' + error.message);
         }
     }
 }

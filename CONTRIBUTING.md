@@ -18,9 +18,17 @@ Knowledge Nexus maintains a very clean, straightforward architecture meant entir
 
 ---
 
-## 👩‍💻 Step-by-Step Submission Guide
+## 👩‍💻 Submission Guidelines
 
-Ready to build something? Here's exactly how.
+Knowledge Nexus supports two primary ways to contribute:
+
+### 1. The Simple Path: Dashboard Upload (Single Files)
+If you just have a single interactive `.html` file, a `.md` markdown article, or a video explanation (`.mp4`), you can use the **Creator Dashboard** directly on the live website. Ensure you tag and categorize it correctly. Once submitted, an admin will review and approve it for public display. *(No Git knowledge required!)*
+
+### 2. The Complex Path: GitHub PR (Multi-File Simulations)
+If your simulation is complex and relies on a directory of scattered assets (e.g., custom CSS files, separate JS logic, multiple images/models), you should route it through GitHub. 
+
+Here is exactly how to build and merge a complex module into the repo.
 
 ### Step 1: Fork the Repository
 
