@@ -104,31 +104,30 @@ async function renderAuthNav(session) {
 }
 
 // ─────────────────────────────────────────────
-//  Write / update profile row in user_profiles
+//  Write / update profile via SECURITY DEFINER RPC
+//  (bypasses RLS — safe for newly registered, unconfirmed users)
 // ─────────────────────────────────────────────
 async function upsertProfile(userId, email, extras = {}) {
-    // Build payload — strip out null/empty so we don't overwrite existing data
-    const payload = { id: userId, email, updated_at: new Date().toISOString(), ...extras };
-    Object.keys(payload).forEach(k => {
-        if (payload[k] === '' || payload[k] === null || payload[k] === undefined) {
-            delete payload[k];
-        }
-    });
+    const params = {
+        p_id:        userId,
+        p_email:     email,
+        p_full_name: extras.full_name  || null,
+        p_phone:     extras.phone      || null,
+        p_age:       extras.age        || null,
+        p_gender:    extras.gender     || null,
+        p_syllabus:  extras.syllabus   || null,
+    };
 
-    console.log('[upsertProfile] Writing to user_profiles:', payload);
+    console.log('[upsertProfile] Calling RPC create_user_profile with:', params);
 
-    const { data, error } = await supabase
-        .from('user_profiles')
-        .upsert(payload, { onConflict: 'id' })
-        .select(); // .select() forces the response to return the upserted row
+    const { error } = await supabase.rpc('create_user_profile', params);
 
     if (error) {
-        console.error('[upsertProfile] FAILED:', error);
-        throw error; // Re-throw so the caller can show it to the user
+        console.error('[upsertProfile] RPC FAILED:', error);
+        throw error;
     }
 
-    console.log('[upsertProfile] Success:', data);
-    return data;
+    console.log('[upsertProfile] RPC success — profile written.');
 }
 
 // ─────────────────────────────────────────────
