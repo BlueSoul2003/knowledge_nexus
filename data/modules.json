@@ -80,6 +80,30 @@
       "thumbnailUrl": "https://images.unsplash.com/photo-1632516447814-22b9c79f98c6?auto=format&fit=crop&q=80&w=800&h=600",
       "tags": ["3D Print", "Hardware"],
       "roles": ["developer", "researcher"]
+    },
+    {
+      "id": "big-five-rpg",
+      "type": "html",
+      "title": "Big Five RPG Simulator",
+      "category": "psychology",
+      "author": "Community",
+      "description": "Decode the underlying algorithm of human behavior and personality via First Principles.",
+      "link": "modules/psychology/big-five-personality/index.html",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=800&h=600",
+      "tags": ["Behavior", "Mind", "RPG"],
+      "roles": ["general", "student", "researcher"]
+    },
+    {
+      "id": "quantum-analyzer",
+      "type": "html",
+      "title": "Quantum State Normalization Analyzer",
+      "category": "physics",
+      "author": "Community",
+      "description": "Interactive physics laboratory simulating wavefunction collapse and probability matrices.",
+      "link": "modules/physics/quantum-state-analyzer/index.html",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1635334731388-71eec8b7c4b1?auto=format&fit=crop&q=80&w=800&h=600",
+      "tags": ["Quantum", "Labs", "Math"],
+      "roles": ["researcher", "student", "hobbyist"]
     }
   ]
 }

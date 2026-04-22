@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>First Principles: Quantum State Analyzer</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- KaTeX for rendering mathematical formulas -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; scroll-behavior: smooth;}
+        .step-card { transition: all 0.3s ease; }
+        .locked { opacity: 0.4; pointer-events: none; filter: grayscale(100%); }
+        .option-btn { transition: all 0.2s; }
+        .option-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(56, 189, 248, 0.4); }
+        .option-btn.selected-correct { background-color: #10b981; border-color: #047857; color: white !important; }
+        .option-btn.selected-wrong { background-color: #ef4444; border-color: #b91c1c; color: white; }
+        
+        @keyframes gentle-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.4); }
+            50% { box-shadow: 0 0 0 10px rgba(6, 182, 212, 0); }
+        }
+        .help-btn { animation: gentle-pulse 2s infinite; }
+
+        .lang-en, .lang-ms, .lang-zh { display: none; }
+        body.show-lang-en .lang-en { display: contents; }
+        body.show-lang-ms .lang-ms { display: contents; }
+        body.show-lang-zh .lang-zh { display: contents; }
+
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Sliders */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; cursor: pointer; margin-top: -7px; box-shadow: 0 0 10px rgba(255,255,255,0.3); transition: transform 0.1s;}
+        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #334155; border-radius: 2px; }
+        
+        #slider-c0::-webkit-slider-thumb { background: #22d3ee; box-shadow: 0 0 12px rgba(34,211,238,0.6); }
+        #slider-c1::-webkit-slider-thumb { background: #c084fc; box-shadow: 0 0 12px rgba(192,132,252,0.6); }
+        #slider-phase::-webkit-slider-thumb { background: #f472b6; box-shadow: 0 0 12px rgba(244,114,182,0.6); }
+
+        /* Physics Canvas */
+        #physics-canvas { width: 100%; max-width: 400px; height: 300px; background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%); border-radius: 12px; border: 1px solid #334155; box-shadow: inset 0 0 40px rgba(0,0,0,0.5); }
+        
+        /* Tab Buttons */
+        .engine-tab { transition: all 0.3s; border-bottom: 2px solid transparent; }
+        .engine-tab.active { border-bottom: 2px solid #22d3ee; color: #22d3ee; background: rgba(34,211,238,0.1); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center py-10 px-4 relative show-lang-en">
+
+    <div class="max-w-5xl w-full pb-32">
+        
+        <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 w-full">
+            <div class="flex flex-nowrap overflow-x-auto hide-scrollbar gap-2 w-full md:w-auto py-2 opacity-0 transition-opacity duration-500 pointer-events-none" id="problem-nav"></div>
+            <div class="bg-slate-800 p-1 rounded-lg border border-slate-700 shadow-sm flex space-x-1 shrink-0 z-50">
+                <button onclick="setLang('en')" id="btn-lang-en" class="px-3 py-1 text-sm font-medium rounded-md bg-cyan-600 text-white transition-colors">EN</button>
+                <button onclick="setLang('ms')" id="btn-lang-ms" class="px-3 py-1 text-sm font-medium rounded-md text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">BM</button>
+                <button onclick="setLang('zh')" id="btn-lang-zh" class="px-3 py-1 text-sm font-medium rounded-md text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">中文</button>
+            </div>
+        </div>
+
+        <div class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 mb-3" id="ui-title"></h1>
+            <p class="text-slate-400 text-sm md:text-base" id="ui-subtitle"></p>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- SECTION 1: 3-IN-1 PHYSICS ENGINE SIMULATION-->
+        <!-- ========================================== -->
+        <div id="simulation-section" class="w-full transition-all duration-700">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 md:p-8 shadow-2xl shadow-cyan-900/20 mb-8">
+                
+                <div class="text-center mb-6">
+                    <h2 class="text-2xl font-bold text-white mb-3" id="ui-sim-title"></h2>
+                    <p class="text-slate-300 text-base" id="ui-sim-desc"></p>
+                </div>
+
+                <!-- Engine Tabs -->
+                <div class="flex justify-center mb-6 border-b border-slate-700">
+                    <button onclick="setEngine('bloch')" id="tab-bloch" class="engine-tab active px-4 py-3 text-sm md:text-base font-bold text-slate-400 hover:text-white rounded-t-lg flex items-center gap-2">
+                        🧲 <span id="ui-tab-bloch"></span>
+                    </button>
+                    <button onclick="setEngine('wave')" id="tab-wave" class="engine-tab px-4 py-3 text-sm md:text-base font-bold text-slate-400 hover:text-white rounded-t-lg flex items-center gap-2">
+                        🌊 <span id="ui-tab-wave"></span>
+                    </button>
+                    <button onclick="setEngine('sg')" id="tab-sg" class="engine-tab px-4 py-3 text-sm md:text-base font-bold text-slate-400 hover:text-white rounded-t-lg flex items-center gap-2">
+                        ⚛️ <span id="ui-tab-sg"></span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                    
+                    <!-- Canvas Visualizer -->
+                    <div class="flex flex-col items-center justify-center p-2 rounded-xl h-full w-full relative">
+                        <canvas id="physics-canvas" width="400" height="300"></canvas>
+                        
+                        <button id="btn-measure" onclick="measureCollapse()" class="w-full max-w-[400px] mt-6 py-4 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-lg rounded-xl shadow-lg shadow-blue-900/50 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed border border-blue-400/30">
+                            <span id="ui-sim-measure"></span>
+                        </button>
+                    </div>
+
+                    <!-- Controls & Math -->
+                    <div class="space-y-6 bg-slate-900/50 p-6 rounded-xl border border-slate-700/50 h-full flex flex-col justify-between">
+                        
+                        <!-- Sliders -->
+                        <div class="space-y-5">
+                            <div>
+                                <label class="flex justify-between text-sm text-cyan-300 font-medium mb-2">
+                                    <span id="ui-sim-amp0"></span> <span class="font-mono bg-slate-800 px-2 py-0.5 rounded text-white" id="val-c0">1.0</span>
+                                </label>
+                                <input type="range" id="slider-c0" min="0" max="5" step="0.1" value="1" oninput="updateSim()">
+                            </div>
+                            <div>
+                                <label class="flex justify-between text-sm text-purple-300 font-medium mb-2">
+                                    <span id="ui-sim-amp1"></span> <span class="font-mono bg-slate-800 px-2 py-0.5 rounded text-white" id="val-c1">1.0</span>
+                                </label>
+                                <input type="range" id="slider-c1" min="0" max="5" step="0.1" value="1" oninput="updateSim()">
+                            </div>
+                            <div>
+                                <label class="flex justify-between text-sm text-pink-300 font-medium mb-2">
+                                    <span id="ui-sim-phase"></span> <span class="font-mono bg-slate-800 px-2 py-0.5 rounded text-white" id="val-phase">0.0π</span>
+                                </label>
+                                <input type="range" id="slider-phase" min="0" max="2" step="0.125" value="0" oninput="updateSim()">
+                            </div>
+                        </div>
+                        
+                        <!-- Math Output -->
+                        <div class="pt-4 border-t border-slate-700">
+                            <div class="flex items-center justify-between mb-4 bg-slate-800/80 p-3 rounded-lg border border-slate-600">
+                                <span class="text-sm font-bold text-emerald-400" id="ui-sim-toggle"></span>
+                                <button id="btn-normalize" onclick="toggleNormalize()" class="relative inline-flex h-7 w-12 items-center rounded-full bg-slate-600 transition-colors focus:outline-none">
+                                    <span id="toggle-knob" class="inline-block h-5 w-5 translate-x-1 rounded-full bg-white transition-transform"></span>
+                                </button>
+                            </div>
+                            
+                            <div class="flex flex-col gap-3">
+                                <div class="font-serif text-lg text-white bg-slate-950 p-4 rounded-lg overflow-x-auto whitespace-nowrap shadow-inner border border-slate-800" id="math-display-state"></div>
+                                <div class="font-serif text-base text-slate-300 bg-slate-950 p-4 rounded-lg overflow-x-auto whitespace-nowrap shadow-inner border border-slate-800" id="math-display-prob"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="text-center mt-10">
+                <button onclick="startAssessment()" class="group relative inline-flex items-center justify-center px-10 py-5 font-bold text-white bg-slate-800 border-2 border-cyan-500/50 rounded-full overflow-hidden hover:bg-slate-700 transition-all shadow-[0_0_20px_rgba(6,182,212,0.2)]">
+                    <span class="absolute w-0 h-0 transition-all duration-500 ease-out bg-cyan-600 rounded-full group-hover:w-full group-hover:h-full opacity-20"></span>
+                    <span class="relative flex items-center gap-3 text-lg tracking-wide">
+                        <span id="ui-sim-proceed"></span>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                    </span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- SECTION 2: THE 20-QUESTION ASSESSMENT      -->
+        <!-- ========================================== -->
+        <div id="assessment-section" class="w-full hidden opacity-0 transition-opacity duration-700">
+            <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-8 shadow-lg shadow-cyan-900/20 text-center relative overflow-hidden">
+                <div class="absolute top-0 right-0 bg-cyan-900 text-cyan-300 text-xs font-bold px-3 py-1 rounded-bl-lg border-l border-b border-cyan-700" id="ui-problem-number"></div>
+                <h2 class="text-sm uppercase tracking-wider text-cyan-400 font-semibold mb-2" id="ui-current-state"></h2>
+                <div id="problem-display" class="text-3xl font-serif tracking-wide py-6 text-white overflow-x-auto"></div>
+                <p id="problem-goal" class="text-slate-300 mt-4 text-base font-medium bg-slate-900/60 inline-block px-6 py-5 rounded-lg border border-slate-700 leading-relaxed text-left w-full shadow-inner"></p>
+            </div>
+
+            <div id="steps-container" class="space-y-6"></div>
+
+            <div id="completion-container" class="mt-8 text-center hidden">
+                <div class="bg-gradient-to-r from-emerald-900 to-teal-900 border border-emerald-500 rounded-xl p-6 shadow-lg">
+                    <h3 class="text-2xl font-bold text-emerald-400 mb-2" id="ui-complete-title"></h3>
+                    <p class="text-emerald-100" id="ui-complete-desc"></p>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center w-full mt-10 pt-6 border-t border-slate-700">
+                <button onclick="prevProblem()" class="px-5 py-3 rounded-xl bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2 font-medium">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                    <span id="ui-btn-prev"></span>
+                </button>
+                <button onclick="nextProblem()" class="px-6 py-3 rounded-xl bg-cyan-700 text-cyan-50 hover:bg-cyan-600 hover:text-white transition-colors flex items-center gap-2 font-bold shadow-[0_0_15px_rgba(6,182,212,0.2)]">
+                    <span id="ui-btn-next"></span>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Progress Bar & Help -->
+    <div id="progress-wrapper" class="fixed bottom-0 left-0 w-full h-1.5 bg-slate-900 z-50 opacity-0 transition-opacity duration-500">
+        <div id="progress-bar" class="h-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)] transition-all duration-500 ease-out" style="width: 0%"></div>
+    </div>
+
+    <button id="help-button" onclick="showHelp()" class="help-btn fixed bottom-10 right-6 bg-cyan-600 hover:bg-cyan-500 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg shadow-cyan-900/50 z-40 transition-colors opacity-0 pointer-events-none" title="Show Detailed Breakdown">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-8 h-8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+        </svg>
+    </button>
+
+    <div id="help-modal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] hidden flex-col items-center justify-center p-4">
+        <div class="bg-slate-800 border border-cyan-700 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-slate-700/50 p-4 border-b border-slate-700 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7 text-cyan-400">
+                        <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 01.67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 11-.671-1.34l.041-.022zM12 9a.75.75 0 100-1.5.75.75 0 000 1.5z" clip-rule="evenodd" />
+                    </svg>
+                    <h3 class="text-xl font-bold text-white tracking-wide" id="ui-help-title"></h3>
+                </div>
+                <button onclick="closeHelp()" class="text-slate-400 hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-8 h-8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 md:p-8 overflow-y-auto text-lg leading-relaxed" id="help-content"></div>
+            <div class="p-5 bg-slate-900/80 border-t border-slate-700 text-center">
+                <button onclick="closeHelp()" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded-xl transition-colors shadow-lg shadow-cyan-900/30" id="ui-help-close"></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Static UI Translations ---
+        const uiTranslations = {
+            title: { en: "Quantum State Normalization Analyzer", ms: "Penganalisis Penormalan Keadaan Kuantum", zh: "量子态归一化分析器" },
+            subtitle: { en: "Apply First Principles thinking to extract physical probabilities from theoretical state vectors.", ms: "Gunakan pemikiran Prinsip Pertama untuk mengekstrak kebarangkalian fizikal daripada vektor keadaan teori.", zh: "运用第一性原理思维，从理论状态向量中提取物理概率。" },
+            simTitle: { en: "3-in-1 Physical Superposition Engine", ms: "Enjin Superposisi Fizikal 3-dalam-1", zh: "三合一叠加态物理引擎" },
+            simDesc: { en: "Experience <b>Wavefunction Collapse</b>. See how Probabilities (|Amp|²) govern physical reality across 3 classic experiments.", ms: "Alami <b>Keruntuhan Fungsi Gelombang</b>. Lihat bagaimana Kebarangkalian (|Amp|²) mengawal realiti fizikal merentasi 3 eksperimen klasik.", zh: "亲身体验<b>波函数坍缩</b>。直观感受概率 (|振幅|²) 是如何主宰这三个经典量子实验的物理现实的。" },
+            
+            tabBloch: { en: "Bloch Sphere", ms: "Sfera Bloch", zh: "布洛赫球面" },
+            tabWave: { en: "Microwave Cavity", ms: "Rongga Gelombang", zh: "微波谐振腔" },
+            tabSg: { en: "Stern-Gerlach", ms: "Eksperimen S-G", zh: "S-G 实验" },
+
+            simAmp0: { en: "Magnitude |0⟩ :", ms: "Magnitud |0⟩ :", zh: "|0⟩ 绝对值 :" },
+            simAmp1: { en: "Magnitude |1⟩ :", ms: "Magnitud |1⟩ :", zh: "|1⟩ 绝对值 :" },
+            simPhase: { en: "Relative Phase (φ):", ms: "Fasa Relatif (φ):", zh: "相对相位 (φ):" },
+            simToggle: { en: "Enforce Normalization (ΣP = 1)", ms: "Kuatkuasakan Penormalan (ΣP = 1)", zh: "开启归一化 (强制 ΣP = 1)" },
+            simMeasure: { en: "TRIGGER MEASUREMENT COLLAPSE", ms: "CETUSKAN KERUNTUHAN PENGUKURAN", zh: "触发测量坍缩" },
+            simProceed: { en: "I Understand. Proceed to Assessment", ms: "Saya Faham. Teruskan ke Penilaian", zh: "我懂了！开始实战测评 (20题)" },
+            currentState: { en: "Current System State", ms: "Keadaan Sistem Semasa", zh: "当前系统状态" },
+            completeTitle: { en: "Analysis Complete", ms: "Analisis Selesai", zh: "分析完成" },
+            completeDesc: { en: "You have successfully reduced the abstract state to a concrete physical probability.", ms: "Anda telah berjaya menukarkan keadaan abstrak kepada kebarangkalian fizikal.", zh: "你已成功将抽象的状态推导为具体的物理概率。" },
+            prevBtn: { en: "Previous Problem", ms: "Soalan Sebelumnya", zh: "上一题" },
+            nextBtn: { en: "Next Problem", ms: "Soalan Seterusnya", zh: "下一题" },
+            helpTitle: { en: "First Principles Breakdown", ms: "Huraian Prinsip Pertama", zh: "第一性原理详细拆解" },
+            helpClose: { en: "Got it!", ms: "Faham!", zh: "明白了！" },
+            problemLabel: { en: "Q", ms: "S", zh: "题" }
+        };
+
+        function t(obj) {
+            if (!obj) return ''; 
+            if (typeof obj === 'string') return obj;
+            return `<span class="lang-en">${obj.en}</span><span class="lang-ms">${obj.ms}</span><span class="lang-zh">${obj.zh}</span>`;
+        }
+
+        // ==========================================
+        // CANVAS PHYSICS ENGINE (3-in-1)
+        // ==========================================
+        const canvas = document.getElementById('physics-canvas');
+        const ctx = canvas.getContext('2d');
+        let currentEngine = 'bloch'; // 'bloch', 'wave', 'sg'
+        let isNormalized = false;
+        let isCollapsed = false;
+        let globalTime = 0;
+        let collapseResult = -1; // 0 or 1
+        let particleSystem = []; // For Stern-Gerlach
+
+        function setEngine(mode) {
+            currentEngine = mode;
+            document.querySelectorAll('.engine-tab').forEach(btn => btn.classList.remove('active', 'border-cyan-400', 'text-cyan-400', 'bg-cyan-400/10'));
+            
+            const activeBtn = document.getElementById(`tab-${mode}`);
+            activeBtn.classList.add('active');
+            activeBtn.style.borderBottomColor = '#22d3ee';
+            activeBtn.style.color = '#22d3ee';
+            activeBtn.style.background = 'rgba(34,211,238,0.1)';
+            
+            particleSystem = []; // Reset particles
+            if (isCollapsed) resetCollapse();
+        }
+
+        function toggleNormalize() {
+            if (isCollapsed) return;
+            isNormalized = !isNormalized;
+            const knob = document.getElementById('toggle-knob');
+            const btn = document.getElementById('btn-normalize');
+            
+            if (isNormalized) {
+                knob.classList.add('translate-x-[20px]');
+                knob.classList.remove('translate-x-1');
+                btn.classList.add('bg-emerald-500');
+                btn.classList.remove('bg-slate-600');
+            } else {
+                knob.classList.remove('translate-x-[20px]');
+                knob.classList.add('translate-x-1');
+                btn.classList.remove('bg-emerald-500');
+                btn.classList.add('bg-slate-600');
+            }
+            updateSim();
+        }
+
+        function updateSim() {
+            if (isCollapsed) resetCollapse();
+
+            let c0 = parseFloat(document.getElementById('slider-c0').value);
+            let c1 = parseFloat(document.getElementById('slider-c1').value);
+            let phaseRaw = parseFloat(document.getElementById('slider-phase').value); // 0 to 2
+            
+            if (c0 === 0 && c1 === 0 && isNormalized) {
+                c0 = 0.1; 
+                document.getElementById('slider-c0').value = 0.1;
+            }
+
+            document.getElementById('val-c0').innerText = c0.toFixed(1);
+            document.getElementById('val-c1').innerText = c1.toFixed(1);
+            document.getElementById('val-phase').innerText = phaseRaw.toFixed(2) + "π";
+
+            let s0 = c0 * c0;
+            let s1 = c1 * c1;
+            let sum = s0 + s1;
+
+            let p0, p1, mathStrState, mathStrProb;
+
+            if (isNormalized) {
+                let n = 1 / Math.sqrt(sum);
+                p0 = s0 * (n*n);
+                p1 = s1 * (n*n);
+                
+                let normC0 = c0 === 0 ? '0' : (n*c0).toFixed(2);
+                let normC1 = c1 === 0 ? '0' : (n*c1).toFixed(2);
+                let phaseStr = phaseRaw === 0 ? '' : `e^{${phaseRaw.toFixed(2)}i\\pi}`;
+                
+                mathStrState = `\\( |\\Psi\\rangle = ${normC0}|0\\rangle + ${normC1}${phaseStr}|1\\rangle \\)`;
+                mathStrProb = `\\( \\sum P = |${normC0}|^2 + |${normC1}|^2 = ${(p0+p1).toFixed(2)} \\)`;
+                
+                document.getElementById('math-display-prob').className = "font-serif text-base text-emerald-400 bg-slate-950 p-4 rounded-lg overflow-x-auto whitespace-nowrap shadow-inner border border-slate-800";
+            } else {
+                p0 = s0;
+                p1 = s1;
+                
+                let phaseStr = phaseRaw === 0 ? '' : `e^{${phaseRaw.toFixed(2)}i\\pi}`;
+                mathStrState = `\\( |\\Psi\\rangle = ${c0.toFixed(1)}|0\\rangle + ${c1.toFixed(1)}${phaseStr}|1\\rangle \\)`;
+                
+                if (sum === 1) {
+                    mathStrProb = `\\( \\langle\\Psi|\\Psi\\rangle = ${sum.toFixed(2)} \\)`;
+                    document.getElementById('math-display-prob').className = "font-serif text-base text-emerald-400 bg-slate-950 p-4 rounded-lg overflow-x-auto whitespace-nowrap shadow-inner border border-slate-800";
+                } else {
+                    mathStrProb = `\\( \\langle\\Psi|\\Psi\\rangle = ${sum.toFixed(2)} \\neq 1 \\text{ (Unphysical)} \\)`;
+                    document.getElementById('math-display-prob').className = "font-serif text-base text-red-400 bg-slate-950 p-4 rounded-lg overflow-x-auto whitespace-nowrap shadow-inner border border-slate-800";
+                }
+            }
+
+            document.getElementById('math-display-state').innerHTML = mathStrState;
+            document.getElementById('math-display-prob').innerHTML = mathStrProb;
+            
+            renderMathInElement(document.getElementById('math-display-state'), { delimiters: [{left: '\\(', right: '\\)', display: false}], throwOnError : false });
+            renderMathInElement(document.getElementById('math-display-prob'), { delimiters: [{left: '\\(', right: '\\)', display: false}], throwOnError : false });
+        }
+
+        function measureCollapse() {
+            if (!isNormalized) {
+                document.getElementById('btn-normalize').classList.add('shadow-[0_0_15px_#ef4444]');
+                setTimeout(() => document.getElementById('btn-normalize').classList.remove('shadow-[0_0_15px_#ef4444]'), 500);
+                return;
+            }
+
+            isCollapsed = true;
+            document.getElementById('btn-measure').disabled = true;
+            document.getElementById('slider-c0').disabled = true;
+            document.getElementById('slider-c1').disabled = true;
+            document.getElementById('slider-phase').disabled = true;
+
+            let c0 = parseFloat(document.getElementById('slider-c0').value);
+            let c1 = parseFloat(document.getElementById('slider-c1').value);
+            let sum = (c0*c0) + (c1*c1);
+            let p0 = (c0*c0) / sum;
+
+            let rand = Math.random();
+            collapseResult = (rand <= p0) ? 0 : 1;
+
+            // Flash Canvas effect
+            canvas.style.transition = "none";
+            canvas.style.backgroundColor = "#e2e8f0";
+            setTimeout(() => {
+                canvas.style.transition = "background-color 0.8s ease-out";
+                canvas.style.backgroundColor = "transparent"; 
+            }, 50);
+
+            document.getElementById('math-display-state').innerHTML = `\\( |\\Psi_{final}\\rangle = |${collapseResult}\\rangle \\)`;
+            document.getElementById('math-display-prob').innerHTML = `<span class="text-emerald-400 font-sans">Wavefunction Collapsed! Adjust sliders to reset.</span>`;
+            renderMathInElement(document.getElementById('math-display-state'), { delimiters: [{left: '\\(', right: '\\)', display: false}], throwOnError : false });
+
+            document.getElementById('slider-c0').disabled = false;
+            document.getElementById('slider-c1').disabled = false;
+            document.getElementById('slider-phase').disabled = false;
+        }
+
+        function resetCollapse() {
+            isCollapsed = false;
+            collapseResult = -1;
+            document.getElementById('btn-measure').disabled = false;
+            particleSystem = []; // clear sg particles
+        }
+
+        // Animation Loop
+        function drawPhysics() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            let c0 = parseFloat(document.getElementById('slider-c0').value);
+            let c1 = parseFloat(document.getElementById('slider-c1').value);
+            let phaseRaw = parseFloat(document.getElementById('slider-phase').value); // 0 to 2
+            
+            let norm = Math.sqrt(c0*c0 + c1*c1);
+            if (norm === 0) norm = 1; // avoid NaN
+            
+            // Physical amplitudes (forced normalized for visualizer to make sense)
+            let a0 = isCollapsed ? (collapseResult === 0 ? 1 : 0) : (isNormalized ? c0/norm : c0);
+            let a1 = isCollapsed ? (collapseResult === 1 ? 1 : 0) : (isNormalized ? c1/norm : c1);
+
+            if (currentEngine === 'bloch') {
+                // 🧲 Bloch Sphere
+                let cx = 200, cy = 150, r = 100;
+                
+                // Draw Sphere Wireframe
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2*Math.PI); ctx.stroke(); // Outline
+                
+                // Equator
+                ctx.beginPath(); ctx.ellipse(cx, cy, r, r*0.3, 0, 0, 2*Math.PI); ctx.stroke(); 
+                // Meridian
+                ctx.beginPath(); ctx.ellipse(cx, cy, r*0.3, r, 0, 0, 2*Math.PI); ctx.stroke();
+
+                // Axis labels
+                ctx.fillStyle = '#22d3ee'; ctx.font = '14px serif'; ctx.fillText('|0⟩', cx - 8, cy - r - 10);
+                ctx.fillStyle = '#c084fc'; ctx.fillText('|1⟩', cx - 8, cy + r + 20);
+
+                // Calculate Vector
+                // Theta: 0 is North(|0>), PI is South(|1>)
+                let theta = 2 * Math.atan2(a1, a0); 
+                let phi = phaseRaw * Math.PI;
+
+                // 3D coordinates on unit sphere
+                let x3 = Math.sin(theta) * Math.cos(phi);
+                let y3 = Math.sin(theta) * Math.sin(phi);
+                let z3 = Math.cos(theta); // Up is positive Z for a moment
+
+                // Isometric projection (tilt slightly down by 20 deg)
+                let tilt = 0.3;
+                let y3_proj = y3 * Math.cos(tilt) - z3 * Math.sin(tilt);
+                let z3_proj = y3 * Math.sin(tilt) + z3 * Math.cos(tilt);
+
+                let targetX = cx + r * x3;
+                let targetY = cy - r * z3_proj; // screen Y is inverted
+
+                // Draw Vector
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(targetX, targetY);
+                ctx.strokeStyle = '#f472b6'; // pinkish
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Draw Vector head (simple circle for 3D feel)
+                ctx.beginPath();
+                ctx.arc(targetX, targetY, 6, 0, 2*Math.PI);
+                ctx.fillStyle = '#f472b6';
+                ctx.fill();
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#f472b6';
+                ctx.fill();
+                ctx.shadowBlur = 0; // reset
+
+            } else if (currentEngine === 'wave') {
+                // 🌊 Microwave Cavity
+                let L = 400;
+                let baseline = 150;
+                
+                // Draw cavity boundaries
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(0, 50); ctx.lineTo(0, 250); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(L, 50); ctx.lineTo(L, 250); ctx.stroke();
+
+                ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(0, baseline); ctx.lineTo(L, baseline); ctx.stroke();
+
+                // Wave superposition
+                ctx.beginPath();
+                ctx.moveTo(0, baseline);
+                for (let x = 0; x <= L; x += 5) {
+                    // Fundamental mode |0> (sin(pi*x/L))
+                    let w0 = a0 * Math.sin(Math.PI * x / L) * Math.cos(globalTime * 0.05);
+                    // First excited mode |1> (sin(2*pi*x/L)) with relative phase
+                    let w1 = a1 * Math.sin(2 * Math.PI * x / L) * Math.cos(globalTime * 0.1 + (phaseRaw * Math.PI));
+                    
+                    let y = baseline - 60 * (w0 + w1); // scale height
+                    ctx.lineTo(x, y);
+                }
+                ctx.strokeStyle = isCollapsed ? (collapseResult === 0 ? '#22d3ee' : '#c084fc') : '#38bdf8';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                // Glow effect
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = ctx.strokeStyle;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+            } else if (currentEngine === 'sg') {
+                // ⚛️ Stern-Gerlach
+                
+                // Draw Apparatus (Magnet)
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+                ctx.fillRect(150, 50, 100, 200);
+                ctx.fillStyle = '#94a3b8'; ctx.font = '12px sans-serif';
+                ctx.fillText("Magnetic Gradient", 155, 45);
+
+                // Draw Screens
+                ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(380, 80); ctx.lineTo(380, 120); ctx.stroke(); // Top screen |0>
+                ctx.fillText("|0⟩", 360, 75);
+                
+                ctx.strokeStyle = '#c084fc';
+                ctx.beginPath(); ctx.moveTo(380, 180); ctx.lineTo(380, 220); ctx.stroke(); // Bottom screen |1>
+                ctx.fillText("|1⟩", 360, 235);
+
+                // Particle logic
+                if (Math.random() < 0.08) {
+                    particleSystem.push({ x: 0, life: 1, resolved: false, measuredPath: -1 });
+                }
+
+                for (let i = particleSystem.length - 1; i >= 0; i--) {
+                    let p = particleSystem[i];
+                    p.x += 4; // speed
+
+                    if (p.x > 400) { particleSystem.splice(i, 1); continue; }
+
+                    let y0 = 150, y1 = 150;
+                    let alpha0 = (a0*a0) / ((a0*a0)+(a1*a1)+0.001); // pure probability
+                    let alpha1 = (a1*a1) / ((a0*a0)+(a1*a1)+0.001);
+
+                    if (p.x > 150) {
+                        // Splitting
+                        let splitDist = Math.min((p.x - 150) * 0.5, 50);
+                        y0 = 150 - splitDist;
+                        y1 = 150 + splitDist;
+                    }
+
+                    if (p.x > 380 && !p.resolved) {
+                        p.resolved = true;
+                        // On impact, draw a flash based on state
+                        let impactY = -1;
+                        if (isCollapsed) {
+                            impactY = collapseResult === 0 ? 100 : 200;
+                        } else {
+                            // Classical simulation of continuous measurement
+                            let rand = Math.random();
+                            impactY = (rand <= alpha0) ? 100 : 200;
+                        }
+                        
+                        ctx.beginPath();
+                        ctx.arc(380, impactY, 15, 0, 2*Math.PI);
+                        ctx.fillStyle = impactY === 100 ? '#22d3ee' : '#c084fc';
+                        ctx.fill();
+                        ctx.shadowBlur = 20; ctx.shadowColor = ctx.fillStyle; ctx.fill(); ctx.shadowBlur = 0;
+                        continue; // skip drawing trail this frame
+                    }
+
+                    if (!p.resolved) {
+                        // Draw |0> path (Cyan)
+                        if (alpha0 > 0.01 && (!isCollapsed || collapseResult === 0)) {
+                            ctx.beginPath(); ctx.arc(p.x, y0, 4, 0, 2*Math.PI);
+                            ctx.fillStyle = `rgba(34, 211, 238, ${isCollapsed ? 1 : alpha0})`;
+                            ctx.fill();
+                            ctx.shadowBlur = 10; ctx.shadowColor = '#22d3ee'; ctx.fill(); ctx.shadowBlur = 0;
+                        }
+                        // Draw |1> path (Purple)
+                        if (alpha1 > 0.01 && (!isCollapsed || collapseResult === 1)) {
+                            ctx.beginPath(); ctx.arc(p.x, y1, 4, 0, 2*Math.PI);
+                            ctx.fillStyle = `rgba(192, 132, 252, ${isCollapsed ? 1 : alpha1})`;
+                            ctx.fill();
+                            ctx.shadowBlur = 10; ctx.shadowColor = '#c084fc'; ctx.fill(); ctx.shadowBlur = 0;
+                        }
+                    }
+                }
+            }
+
+            globalTime++;
+            requestAnimationFrame(drawPhysics);
+        }
+
+        // ==========================================
+        // QUIZ LOGIC (The FULL 20 Questions)
+        // ==========================================
+        const c1 = { en: "Step 1: Construct the Bra Vector", ms: "Langkah 1: Bina Vektor Bra", zh: "步骤 1：构建左矢 (Bra Vector)" };
+        const c2 = { en: "Step 2: Calculate Inner Product", ms: "Langkah 2: Kira Hasil Darab Dalam", zh: "步骤 2：计算内积" };
+        const c3 = { en: "Step 3: Normalization Constant (N)", ms: "Langkah 3: Pemalar Penormalan (N)", zh: "步骤 3：确定归一化常数 (N)" };
+        const c4 = { en: "Step 4: Extract Probability", ms: "Langkah 4: Ekstrak Kebarangkalian", zh: "步骤 4：提取概率" };
+
+        const d1 = { en: "Take the complex conjugate (and transpose if matrix).", ms: "Ambil konjugat kompleks (dan transposisi jika matriks).", zh: "取复共轭 (若是矩阵则需转置)。" };
+        const d2 = { en: "Expand \\( \\langle\\Psi|\\Psi\\rangle \\).", ms: "Kembangkan \\( \\langle\\Psi|\\Psi\\rangle \\).", zh: "展开计算内积。" };
+        const d3 = { en: "Find \\( N \\) where \\( |N|^2 \\langle\\Psi|\\Psi\\rangle = 1 \\).", ms: "Cari \\( N \\).", zh: "找出常数 \\( N \\)。" };
+        const d4 = { en: "Calculate magnitude squared of the normalized amplitude.", ms: "Kira magnitud kuasa dua bagi amplitud ternormal.", zh: "计算归一化后振幅绝对值的平方。" };
+
+        function buildBreakdown(txtEn, txtMs, txtZh) { return { en: txtEn, ms: txtMs, zh: txtZh }; }
+
+        // The Full 20 Questions Database
+        const problems = [
+            // Q1: Standard Dirac
+            {
+                equation: "\\( |\\Psi\\rangle = 2|e_1\\rangle - 2i|e_2\\rangle + i|e_3\\rangle \\)",
+                goal: { en: "Consider a quantum system prepared in an unnormalized superposition of three states. Determine the exact probability of collapsing into \\( |e_2\\rangle \\).", ms: "Tentukan kebarangkalian teori yang tepat bagi sistem ini untuk runtuh ke dalam keadaan eigen \\( |e_2\\rangle \\).", zh: "请确定在进行投影测量时，该系统坍缩到本征态 \\( |e_2\\rangle \\) 的确切理论概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("Flip imaginary signs.", "Tukar tanda khayalan.", "反转虚数符号。"), options: [
+                        { text: "\\( \\langle\\Psi| = 2\\langle e_1| - 2i\\langle e_2| + i\\langle e_3| \\)", correct: false, feedback: { en: "Flip 'i' signs.", ms: "Tukar tanda 'i'.", zh: "记得反转 'i' 的符号。" } },
+                        { text: "\\( \\langle\\Psi| = 2\\langle e_1| + 2i\\langle e_2| - i\\langle e_3| \\)", correct: true, feedback: { en: "Perfect.", ms: "Sempurna.", zh: "完美。" } },
+                        { text: "\\( \\langle\\Psi| = -2\\langle e_1| + 2i\\langle e_2| - i\\langle e_3| \\)", correct: false, feedback: { en: "Real numbers stay same.", ms: "Nombor nyata kekal.", zh: "实数保持不变。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 4+4+1=9 \\)", "\\( 4+4+1=9 \\)", "\\( 4+4+1=9 \\)"), options: [
+                        { text: "\\( -1 \\)", correct: false, feedback: { en: "Careful with squares.", ms: "Hati-hati dengan kuasa dua.", zh: "小心平方。" } },
+                        { text: "\\( 9 \\)", correct: true, feedback: { en: "Correct! (4+4+1)", ms: "Betul!", zh: "正确！" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( N = 1/3 \\)", "\\( N = 1/3 \\)", "\\( N = 1/3 \\)"), options: [
+                        { text: "\\( N = 1/9 \\)", correct: false, feedback: { en: "Take square root.", ms: "Ambil punca kuasa dua.", zh: "取平方根。" } },
+                        { text: "\\( N = 1/3 \\)", correct: true, feedback: { en: "Excellent.", ms: "Cemerlang.", zh: "非常好。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |(-2i)/3|^2 = 4/9 \\)", "Kuasa dua amplitud.", "新振幅平方。"), options: [
+                        { text: "\\( P = 2/3 \\)", correct: false, feedback: { en: "Square it.", ms: "Kuasa duakannya.", zh: "请平方。" } },
+                        { text: "\\( P = 4/9 \\)", correct: true, feedback: { en: "Brilliant.", ms: "Hebat.", zh: "太棒了。" } }
+                    ]}
+                ]
+            },
+            // Q2: Matrix Vector
+            {
+                equation: "\\( |\\Phi\\rangle = \\begin{pmatrix} i \\\\ 2 \\\\ -1 \\end{pmatrix} \\)",
+                goal: { en: "A qutrit is defined by a column state vector. Calculate the probability of observing the system in the second computational state.", ms: "Kirakan kebarangkalian yang tepat untuk memerhatikan sistem dalam keadaan pengkomputeran kedua.", zh: "请计算在应用测量算符后，观察到该系统处于第二个计算基态的确切概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("Row matrix with flipped 'i'.", "Matriks baris.", "行矩阵。"), options: [
+                        { text: "\\( \\begin{pmatrix} i & 2 & -1 \\end{pmatrix} \\)", correct: false, feedback: { en: "Flip 'i'.", ms: "Tukar 'i'.", zh: "反转 'i'。" } },
+                        { text: "\\( \\begin{pmatrix} -i & 2 & -1 \\end{pmatrix} \\)", correct: true, feedback: { en: "Correct!", ms: "Betul!", zh: "正确！" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 1+4+1=6 \\)", "\\( 1+4+1=6 \\)", "\\( 1+4+1=6 \\)"), options: [
+                        { text: "\\( 4 \\)", correct: false, feedback: { en: "Check math.", ms: "Semak kiraan.", zh: "检查计算。" } },
+                        { text: "\\( 6 \\)", correct: true, feedback: { en: "Spot on!", ms: "Tepat!", zh: "完全正确！" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{6} \\)", "\\( 1/\\sqrt{6} \\)", "\\( 1/\\sqrt{6} \\)"), options: [
+                        { text: "\\( N = 1/\\sqrt{6} \\)", correct: true, feedback: { en: "Perfect.", ms: "Sempurna.", zh: "完美。" } },
+                        { text: "\\( N = 1/6 \\)", correct: false, feedback: { en: "Square root needed.", ms: "Perlu punca.", zh: "需要平方根。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |2/\\sqrt{6}|^2 = 4/6 \\)", "\\( 4/6 \\)", "\\( 4/6 \\)"), options: [
+                        { text: "\\( P = 2/\\sqrt{6} \\)", correct: false, feedback: { en: "Square it.", ms: "Kuasa duakannya.", zh: "请平方。" } },
+                        { text: "\\( P = 4/6 \\)", correct: true, feedback: { en: "Correct!", ms: "Betul!", zh: "正确！" } }
+                    ]}
+                ]
+            },
+            // Q3: Spin State
+            {
+                equation: "\\( |S\\rangle = 3|\\uparrow\\rangle - 4i|\\downarrow\\rangle \\)",
+                goal: { en: "An electron's spin state is a linear combination. Evaluate the probability that a Stern-Gerlach apparatus will deflect it downward.", ms: "Nilaikan kebarangkalian bahawa radas Stern-Gerlach akan memesongkan elektron ini ke arah bawah.", zh: "请评估施特恩-格拉赫仪器将该电子向下方偏转的概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( 3\\langle\\uparrow| + 4i\\langle\\downarrow| \\)", "", ""), options: [
+                        { text: "\\( 3\\langle\\uparrow| - 4i\\langle\\downarrow| \\)", correct: false, feedback: { en: "Flip sign.", ms: "Tukar tanda.", zh: "反转符号。" } },
+                        { text: "\\( 3\\langle\\uparrow| + 4i\\langle\\downarrow| \\)", correct: true, feedback: { en: "Good.", ms: "Bagus.", zh: "很好。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 3^2 + 4^2 = 25 \\)", "", ""), options: [
+                        { text: "\\( -7 \\)", correct: false, feedback: { en: "Squares are positive.", ms: "Positif.", zh: "平方为正。" } },
+                        { text: "\\( 25 \\)", correct: true, feedback: { en: "9 + 16 = 25.", ms: "Tepat.", zh: "正确。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/5 \\)", "", ""), options: [
+                        { text: "\\( N = 1/5 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/25 \\)", correct: false, feedback: { en: "Square root.", ms: "Punca kuasa dua.", zh: "要开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |-4i/5|^2 = 16/25 \\)", "", ""), options: [
+                        { text: "\\( P = 16/25 \\)", correct: true, feedback: { en: "Excellent.", ms: "Terbaik.", zh: "完美。" } },
+                        { text: "\\( P = -16/25 \\)", correct: false, feedback: { en: "Never negative.", ms: "Tidak boleh negatif.", zh: "概率不能为负。" } }
+                    ]}
+                ]
+            },
+            // Q4: Complex Polynomial
+            {
+                equation: "\\( |\\chi\\rangle = (1+i)|a\\rangle + \\sqrt{2}|b\\rangle \\)",
+                goal: { en: "Compute the probability of detecting the oscillator in the specific energy level \\( |a\\rangle \\).", ms: "Kirakan kebarangkalian untuk mengesan pengayun tersebut dalam aras tenaga tertentu \\( |a\\rangle \\).", zh: "请计算在特定能级 \\( |a\\rangle \\) 中探测到该谐振子的概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( (1-i)\\langle a| + \\sqrt{2}\\langle b| \\)", "", ""), options: [
+                        { text: "\\( (1-i)\\langle a| + \\sqrt{2}\\langle b| \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( (1-i)\\langle a| - \\sqrt{2}\\langle b| \\)", correct: false, feedback: { en: "Sqrt is real.", ms: "Punca nyata.", zh: "根号是实数。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 2 + 2 = 4 \\)", "", ""), options: [
+                        { text: "\\( 4 \\)", correct: true, feedback: { en: "2 + 2 = 4.", ms: "Tepat.", zh: "对的。" } },
+                        { text: "\\( 2 \\)", correct: false, feedback: { en: "Don't forget 2nd term.", ms: "Jangan lupa sebutan kedua.", zh: "别忘了第二项。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{4} = 1/2 \\)", "", ""), options: [
+                        { text: "\\( N = 1/2 \\)", correct: true, feedback: { en: "Yes.", ms: "Ya.", zh: "是的。" } },
+                        { text: "\\( N = 1/4 \\)", correct: false, feedback: { en: "Root.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |(1+i)/2|^2 = 2/4 = 1/2 \\)", "", ""), options: [
+                        { text: "\\( P = 1/4 \\)", correct: false, feedback: { en: "|1+i|^2 is 2.", ms: "|1+i|^2 ialah 2.", zh: "|1+i|^2 是 2。" } },
+                        { text: "\\( P = 1/2 \\)", correct: true, feedback: { en: "Correct! 2/4 = 1/2", ms: "Betul!", zh: "对的！" } }
+                    ]}
+                ]
+            },
+            // Q5: 4-State Uniform
+            {
+                equation: "\\( |U\\rangle = |a\\rangle + i|b\\rangle - |c\\rangle - i|d\\rangle \\)",
+                goal: { en: "Suppose a microwave photon is trapped. Calculate the expectation of observing the photon occupying exactly mode \\( |c\\rangle \\).", ms: "Kirakan jangkaan untuk memerhatikan foton menduduki tepat pada ragam \\( |c\\rangle \\).", zh: "请计算观察到光子恰好占据模式 \\( |c\\rangle \\) 的期望概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( \\langle a| - i\\langle b| - \\langle c| + i\\langle d| \\)", "", ""), options: [
+                        { text: "\\( \\langle a| - i\\langle b| - \\langle c| + i\\langle d| \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( \\langle a| - i\\langle b| + \\langle c| + i\\langle d| \\)", correct: false, feedback: { en: "Real '-1' stays '-1'.", ms: "Kekal negatif.", zh: "实数负号不变。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("1 + 1 + 1 + 1 = 4", "", ""), options: [
+                        { text: "\\( 0 \\)", correct: false, feedback: { en: "Magnitudes add up.", ms: "Tambah magnitud.", zh: "全部相加。" } },
+                        { text: "\\( 4 \\)", correct: true, feedback: { en: "Yes, 4 ones.", ms: "Ya.", zh: "对的。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{4} = 1/2 \\)", "", ""), options: [
+                        { text: "\\( N = 1/2 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/4 \\)", correct: false, feedback: { en: "Root it.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |-1/2|^2 = 1/4 \\)", "", ""), options: [
+                        { text: "\\( P = 1/4 \\)", correct: true, feedback: { en: "Exactly 25%.", ms: "Tepat 25%.", zh: "完全正确。" } },
+                        { text: "\\( P = -1/4 \\)", correct: false, feedback: { en: "Positive only.", ms: "Positif sahaja.", zh: "只能是正数。" } }
+                    ]}
+                ]
+            },
+            // Q6: 2-Row Matrix
+            {
+                equation: "\\( |V\\rangle = \\begin{pmatrix} 1-i \\\\ 1+i \\end{pmatrix} \\)",
+                goal: { en: "Determine the overall physical probability of the qubit being measured in the \\( |0\\rangle \\) state (the first row).", ms: "Tentukan kebarangkalian fizikal qubit itu diukur dalam keadaan \\( |0\\rangle \\) (baris pertama).", zh: "请确定测量该量子比特为 \\( |0\\rangle \\) 态（第一行）的总体物理概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( \\begin{pmatrix} 1+i & 1-i \\end{pmatrix} \\)", "", ""), options: [
+                        { text: "\\( \\begin{pmatrix} 1+i & 1-i \\end{pmatrix} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( \\begin{pmatrix} -1+i & -1-i \\end{pmatrix} \\)", correct: false, feedback: { en: "Don't flip real 1.", ms: "Jangan tukar 1.", zh: "不要改变实数 1。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 2 + 2 = 4 \\)", "", ""), options: [
+                        { text: "\\( 4 \\)", correct: true, feedback: { en: "2+2=4.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 0 \\)", correct: false, feedback: { en: "Check math.", ms: "Semak kiraan.", zh: "检查计算。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/2 \\)", "", ""), options: [
+                        { text: "\\( N = 1/2 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/4 \\)", correct: false, feedback: { en: "Root it.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |(1-i)/2|^2 = 2/4 = 1/2 \\)", "", ""), options: [
+                        { text: "\\( P = 1/2 \\)", correct: true, feedback: { en: "50% chance.", ms: "50%.", zh: "50% 概率。" } },
+                        { text: "\\( P = 1/4 \\)", correct: false, feedback: { en: "Numerator magnitude is 2.", ms: "Magnitud atas ialah 2.", zh: "分子绝对值的平方是 2。" } }
+                    ]}
+                ]
+            },
+            // Q7: Already Normalized
+            {
+                equation: "\\( |K\\rangle = \\frac{1}{2}|0\\rangle + \\frac{\\sqrt{3}i}{2}|1\\rangle \\)",
+                goal: { en: "Analyze the state vector and calculate the final probability of reading out a logical '1'.", ms: "Analisis vektor keadaan ini dengan teliti dan kirakan kebarangkalian akhir.", zh: "请仔细分析该状态向量，并计算读取逻辑 '1' 的最终概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( \\frac{1}{2}\\langle 0| - \\frac{\\sqrt{3}i}{2}\\langle 1| \\)", "", ""), options: [
+                        { text: "\\( \\frac{1}{2}\\langle 0| - \\frac{\\sqrt{3}i}{2}\\langle 1| \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( \\frac{1}{2}\\langle 0| + \\frac{\\sqrt{3}i}{2}\\langle 1| \\)", correct: false, feedback: { en: "Flip 'i'.", ms: "Tukar 'i'.", zh: "反转 'i'。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 1/4 + 3/4 = 1 \\)", "", ""), options: [
+                        { text: "\\( 1 \\)", correct: true, feedback: { en: "Already 1!", ms: "Sudah 1!", zh: "已经是 1 了！" } },
+                        { text: "\\( 4 \\)", correct: false, feedback: { en: "Fractions add to 1.", ms: "Pecahan tambah jadi 1.", zh: "分数相加等于 1。" } }
+                    ]},
+                    { title: c3, instruction: { en: "State is normalized. What is N?", ms: "Keadaan telah ternormal. Apakah N?", zh: "状态已归一化。N 是多少？" }, breakdown: buildBreakdown("\\( 1/\\sqrt{1} = 1 \\)", "", ""), options: [
+                        { text: "\\( N = 1 \\)", correct: true, feedback: { en: "Yes, it's a trick!", ms: "Ya, ini trik!", zh: "对，这是个陷阱！" } },
+                        { text: "\\( N = 1/4 \\)", correct: false, feedback: { en: "It's 1.", ms: "Ia adalah 1.", zh: "应该是 1。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |\\sqrt{3}i/2|^2 = 3/4 \\)", "", ""), options: [
+                        { text: "\\( P = 3/4 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( P = 1/4 \\)", correct: false, feedback: { en: "That's for state 0.", ms: "Itu untuk keadaan 0.", zh: "那是状态 0 的概率。" } }
+                    ]}
+                ]
+            },
+            // Q8: 3-State Matrix with Roots
+            {
+                equation: "\\( |W\\rangle = \\begin{pmatrix} \\sqrt{2} \\\\ i\\sqrt{3} \\\\ -2 \\end{pmatrix} \\)",
+                goal: { en: "Evaluate the statistical probability of observing the particle's state corresponding to the second matrix element.", ms: "Nilaikan kebarangkalian statistik untuk memerhatikan keadaan zarah yang sepadan dengan elemen matriks kedua.", zh: "请评估观察到该粒子状态对应于第二个矩阵元素的统计概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( \\begin{pmatrix} \\sqrt{2} & -i\\sqrt{3} & -2 \\end{pmatrix} \\)", "", ""), options: [
+                        { text: "\\( \\begin{pmatrix} \\sqrt{2} & -i\\sqrt{3} & -2 \\end{pmatrix} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( \\begin{pmatrix} -\\sqrt{2} & -i\\sqrt{3} & 2 \\end{pmatrix} \\)", correct: false, feedback: { en: "Reals don't change.", ms: "Nyata tidak berubah.", zh: "实数不变。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 2 + 3 + 4 = 9 \\)", "", ""), options: [
+                        { text: "\\( 9 \\)", correct: true, feedback: { en: "2+3+4=9.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 5 \\)", correct: false, feedback: { en: "(-2)^2 = 4.", ms: "(-2)^2 ialah 4.", zh: "(-2)^2 是 4。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/3 \\)", "", ""), options: [
+                        { text: "\\( N = 1/3 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/9 \\)", correct: false, feedback: { en: "Root it.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |i\\sqrt{3}/3|^2 = 3/9 = 1/3 \\)", "", ""), options: [
+                        { text: "\\( P = 1/3 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( P = \\sqrt{3}/3 \\)", correct: false, feedback: { en: "Square it.", ms: "Kuasa dua.", zh: "请平方。" } }
+                    ]}
+                ]
+            },
+            // Q9: Pure Imaginary Matrix
+            {
+                equation: "\\( |Y\\rangle = \\begin{pmatrix} 2i \\\\ -3i \\end{pmatrix} \\)",
+                goal: { en: "Deduce the precise probability that a measurement projects the system into the second basis state.", ms: "Deduksikan kebarangkalian yang tepat bahawa satu pengukuran memunjurkan sistem ke dalam keadaan asas kedua.", zh: "请推导一次测量将系统投影到第二个基态的确切概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( \\begin{pmatrix} -2i & 3i \\end{pmatrix} \\)", "", ""), options: [
+                        { text: "\\( \\begin{pmatrix} -2i & 3i \\end{pmatrix} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( \\begin{pmatrix} 2i & -3i \\end{pmatrix} \\)", correct: false, feedback: { en: "Flip signs.", ms: "Tukar tanda.", zh: "反转符号。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 4 + 9 = 13 \\)", "", ""), options: [
+                        { text: "\\( 13 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( -13 \\)", correct: false, feedback: { en: "Squares are positive.", ms: "Positif.", zh: "平方后是正数。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{13} \\)", "", ""), options: [
+                        { text: "\\( N = 1/\\sqrt{13} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/13 \\)", correct: false, feedback: { en: "Root it.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |-3i/\\sqrt{13}|^2 = 9/13 \\)", "", ""), options: [
+                        { text: "\\( P = 9/13 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( P = -9/13 \\)", correct: false, feedback: { en: "Positive only.", ms: "Positif.", zh: "只能是正数。" } }
+                    ]}
+                ]
+            },
+            // Q10: Complex Polynomial Mixed
+            {
+                equation: "\\( |Z\\rangle = i|u\\rangle + (2-i)|v\\rangle \\)",
+                goal: { en: "Compute the resultant physical probability of the system being found in state \\( |v\\rangle \\).", ms: "Kirakan hasil kebarangkalian fizikal bagi sistem yang dijumpai dalam keadaan \\( |v\\rangle \\).", zh: "请计算该系统被发现在状态 \\( |v\\rangle \\) 的最终物理概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( -i\\langle u| + (2+i)\\langle v| \\)", "", ""), options: [
+                        { text: "\\( -i\\langle u| + (2+i)\\langle v| \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( i\\langle u| + (2-i)\\langle v| \\)", correct: false, feedback: { en: "Flip 'i'.", ms: "Tukar 'i'.", zh: "反转 'i'。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 1 + (4+1) = 6 \\)", "", ""), options: [
+                        { text: "\\( 6 \\)", correct: true, feedback: { en: "1 + 5 = 6.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 5 \\)", correct: false, feedback: { en: "Don't forget the first term.", ms: "Jangan lupa sebutan pertama.", zh: "别忘了第一项。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{6} \\)", "", ""), options: [
+                        { text: "\\( N = 1/\\sqrt{6} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/6 \\)", correct: false, feedback: { en: "Root it.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |(2-i)/\\sqrt{6}|^2 = 5/6 \\)", "", ""), options: [
+                        { text: "\\( P = 5/6 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( P = 3/6 \\)", correct: false, feedback: { en: "|2-i|^2 is 5.", ms: "|2-i|^2 ialah 5.", zh: "|2-i|^2 是 5。" } }
+                    ]}
+                ]
+            },
+            // Q11: Relative Phase (Euler)
+            {
+                equation: "\\( |O\\rangle = 2|0\\rangle + 2e^{i\\pi/2}|1\\rangle \\)",
+                goal: { en: "Recognizing that \\( e^{i\\pi/2} = i \\), determine the final observation probability of the photon in the \\( |1\\rangle \\) mode.", ms: "Memandangkan \\( e^{i\\pi/2} = i \\), tentukan kebarangkalian pemerhatian akhir foton dalam ragam \\( |1\\rangle \\).", zh: "考虑到 \\( e^{i\\pi/2} = i \\)，请确定在 \\( |1\\rangle \\) 模式下观察到光子的最终概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( e^{i\\pi/2} = i \\). Bra is \\( 2\\langle 0| - 2i\\langle 1| \\).", "Bra ialah \\( 2\\langle 0| - 2i\\langle 1| \\).", "左矢为 \\( 2\\langle 0| - 2i\\langle 1| \\)。"), options: [
+                        { text: "\\( 2\\langle 0| - 2i\\langle 1| \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 2\\langle 0| - 2e^{i\\pi/2}\\langle 1| \\)", correct: false, feedback: { en: "Convert to 'i' first.", ms: "Tukar ke 'i' dahulu.", zh: "先转换为 'i'。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 4 + 4 = 8 \\)", "", ""), options: [
+                        { text: "\\( 8 \\)", correct: true, feedback: { en: "4 + 4 = 8.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 0 \\)", correct: false, feedback: { en: "Check math.", ms: "Semak.", zh: "检查计算。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{8} \\)", "", ""), options: [
+                        { text: "\\( N = 1/\\sqrt{8} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/8 \\)", correct: false, feedback: { en: "Root it.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |2i/\\sqrt{8}|^2 = 4/8 = 1/2 \\)", "", ""), options: [
+                        { text: "\\( P = 1/2 \\)", correct: true, feedback: { en: "50% chance.", ms: "50%.", zh: "50% 概率。" } },
+                        { text: "\\( P = 4/6 \\)", correct: false, feedback: { en: "Denominator is 8.", ms: "Penyebut ialah 8.", zh: "分母是 8。" } }
+                    ]}
+                ]
+            },
+            // Q12: Zero Probability (Forbidden Transition)
+            {
+                equation: "\\( |F\\rangle = 3|e_1\\rangle + 4i|e_2\\rangle \\)",
+                goal: { en: "Compute the strict theoretical probability of measuring this particle in the third energy shell \\( |e_3\\rangle \\).", ms: "Kirakan kebarangkalian teori yang ketat untuk mengukur zarah ini dalam petala tenaga ketiga \\( |e_3\\rangle \\).", zh: "请计算在第三能壳 \\( |e_3\\rangle \\) 中测量到该粒子的严格理论概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( 3\\langle e_1| - 4i\\langle e_2| \\)", "", ""), options: [
+                        { text: "\\( 3\\langle e_1| - 4i\\langle e_2| \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 3\\langle e_1| + 4i\\langle e_2| \\)", correct: false, feedback: { en: "Flip 'i'.", ms: "Tukar 'i'.", zh: "反转 'i'。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 9 + 16 = 25 \\)", "", ""), options: [
+                        { text: "\\( 25 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 7 \\)", correct: false, feedback: { en: "Add magnitudes.", ms: "Tambah magnitud.", zh: "相加绝对值。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/5 \\)", "", ""), options: [
+                        { text: "\\( N = 1/5 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/25 \\)", correct: false, feedback: { en: "Root.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("Amplitude of \\( |e_3\\rangle \\) is 0. \\( |0/5|^2 = 0 \\).", "Amplitud 0.", "振幅为 0。"), options: [
+                        { text: "\\( P = 0 \\)", correct: true, feedback: { en: "Impossible transition.", ms: "Peralihan mustahil.", zh: "不可能的跃迁。" } },
+                        { text: "\\( P = 16/25 \\)", correct: false, feedback: { en: "That is for e2.", ms: "Itu untuk e2.", zh: "那是 e2 的概率。" } }
+                    ]}
+                ]
+            },
+            // Q13: Spin-1 Boson (3-Level Matrix)
+            {
+                equation: "\\( |B\\rangle = \\begin{pmatrix} 1+i \\\\ 1-i \\\\ 2 \\end{pmatrix} \\)",
+                goal: { en: "Evaluate the probability that a measurement yields the \\( m_z = -1 \\) state (the 3rd row).", ms: "Nilaikan kebarangkalian bahawa satu pengukuran menghasilkan keadaan \\( m_z = -1 \\) (baris ke-3).", zh: "请评估进行测量产生 \\( m_z = -1 \\) 状态（第 3 行）的概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( \\begin{pmatrix} 1-i & 1+i & 2 \\end{pmatrix} \\)", "", ""), options: [
+                        { text: "\\( \\begin{pmatrix} 1-i & 1+i & 2 \\end{pmatrix} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( \\begin{pmatrix} 1+i & 1-i & 2 \\end{pmatrix} \\)", correct: false, feedback: { en: "Flip 'i'.", ms: "Tukar 'i'.", zh: "反转 'i'。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 2 + 2 + 4 = 8 \\)", "", ""), options: [
+                        { text: "\\( 8 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 6 \\)", correct: false, feedback: { en: "Row 3 is 2^2=4.", ms: "Baris 3 ialah 4.", zh: "第3行平方是4。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{8} \\)", "", ""), options: [
+                        { text: "\\( N = 1/\\sqrt{8} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/8 \\)", correct: false, feedback: { en: "Root.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |2/\\sqrt{8}|^2 = 4/8 = 1/2 \\)", "", ""), options: [
+                        { text: "\\( P = 1/2 \\)", correct: true, feedback: { en: "50% chance.", ms: "50%.", zh: "50% 概率。" } },
+                        { text: "\\( P = 1/4 \\)", correct: false, feedback: { en: "Square the 2.", ms: "Kuasa dua untuk 2.", zh: "2的平方。" } }
+                    ]}
+                ]
+            },
+            // Q14: Large Photon Number (Pythagorean)
+            {
+                equation: "\\( |P\\rangle = 5|a\\rangle - 12i|b\\rangle \\)",
+                goal: { en: "Calculate the exact physical probability of the system collapsing into the \\( |b\\rangle \\) mode.", ms: "Kirakan kebarangkalian fizikal yang tepat bagi sistem yang runtuh ke dalam ragam \\( |b\\rangle \\).", zh: "请计算系统坍缩到 \\( |b\\rangle \\) 模式的确切物理概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( 5\\langle a| + 12i\\langle b| \\)", "", ""), options: [
+                        { text: "\\( 5\\langle a| + 12i\\langle b| \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 5\\langle a| - 12i\\langle b| \\)", correct: false, feedback: { en: "Flip 'i'.", ms: "Tukar 'i'.", zh: "反转 'i'。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 25 + 144 = 169 \\)", "", ""), options: [
+                        { text: "\\( 169 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( -119 \\)", correct: false, feedback: { en: "Squares are positive.", ms: "Positif.", zh: "平方后是正数。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{169} = 1/13 \\)", "", ""), options: [
+                        { text: "\\( N = 1/13 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/169 \\)", correct: false, feedback: { en: "Root.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |-12i/13|^2 = 144/169 \\)", "", ""), options: [
+                        { text: "\\( P = 144/169 \\)", correct: true, feedback: { en: "Excellent.", ms: "Hebat.", zh: "完美。" } },
+                        { text: "\\( P = 12/13 \\)", correct: false, feedback: { en: "Square it.", ms: "Kuasa dua.", zh: "请平方。" } }
+                    ]}
+                ]
+            },
+            // Q15: Topological Phase (Euler 2)
+            {
+                equation: "\\( |\\Psi\\rangle = e^{i\\pi}|0\\rangle + \\sqrt{3}|1\\rangle \\)",
+                goal: { en: "Determine the final normalized probability of finding the system back in the ground state \\( |0\\rangle \\).", ms: "Tentukan kebarangkalian ternormal akhir untuk mendapati sistem tersebut kembali dalam keadaan asas \\( |0\\rangle \\).", zh: "请确定最终发现系统回到基态 \\( |0\\rangle \\) 的归一化概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( e^{i\\pi} = -1 \\). Ket is \\( -|0\\rangle + \\sqrt{3}|1\\rangle \\). Bra is \\( -\\langle 0| + \\sqrt{3}\\langle 1| \\).", "", ""), options: [
+                        { text: "\\( -\\langle 0| + \\sqrt{3}\\langle 1| \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( \\langle 0| - \\sqrt{3}\\langle 1| \\)", correct: false, feedback: { en: "Real '-1' stays.", ms: "-1 kekal.", zh: "实数-1不变。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 1 + 3 = 4 \\)", "", ""), options: [
+                        { text: "\\( 4 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 2 \\)", correct: false, feedback: { en: "(-1)^2 = 1.", ms: "(-1)^2 ialah 1.", zh: "(-1)^2 是 1。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{4} = 1/2 \\)", "", ""), options: [
+                        { text: "\\( N = 1/2 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/4 \\)", correct: false, feedback: { en: "Root.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |-1/2|^2 = 1/4 \\)", "", ""), options: [
+                        { text: "\\( P = 1/4 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( P = 3/4 \\)", correct: false, feedback: { en: "That is for state 1.", ms: "Itu untuk keadaan 1.", zh: "那是状态1的概率。" } }
+                    ]}
+                ]
+            },
+            // Q16: Bell State Analogue (4D Matrix)
+            {
+                equation: "\\( |E\\rangle = \\begin{pmatrix} 1 \\\\ 0 \\\\ 0 \\\\ -i \\end{pmatrix} \\)",
+                goal: { en: "Calculate the theoretical probability of simultaneously measuring both qubits in the state corresponding to the 4th row.", ms: "Kirakan kebarangkalian teori yang tepat untuk mengukur keadaan yang sepadan dengan baris ke-4.", zh: "请计算同时测量到两个量子比特处于对应于第 4 行的状态的确切理论概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( \\begin{pmatrix} 1 & 0 & 0 & i \\end{pmatrix} \\)", "", ""), options: [
+                        { text: "\\( \\begin{pmatrix} 1 & 0 & 0 & i \\end{pmatrix} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( \\begin{pmatrix} -1 & 0 & 0 & i \\end{pmatrix} \\)", correct: false, feedback: { en: "Real 1 stays.", ms: "1 kekal.", zh: "实数1不变。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 1 + 0 + 0 + 1 = 2 \\)", "", ""), options: [
+                        { text: "\\( 2 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 0 \\)", correct: false, feedback: { en: "(-i)(i) = 1.", ms: "(-i)(i) = 1.", zh: "(-i)(i) = 1。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{2} \\)", "", ""), options: [
+                        { text: "\\( N = 1/\\sqrt{2} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/2 \\)", correct: false, feedback: { en: "Root.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |-i/\\sqrt{2}|^2 = 1/2 \\)", "", ""), options: [
+                        { text: "\\( P = 1/2 \\)", correct: true, feedback: { en: "50%.", ms: "50%.", zh: "50%。" } },
+                        { text: "\\( P = 1/4 \\)", correct: false, feedback: { en: "Square root of 2 squared is 2.", ms: "Punca kuasa dua.", zh: "根号2平方是2。" } }
+                    ]}
+                ]
+            },
+            // Q17: Fractional Amplitude
+            {
+                equation: "\\( |C\\rangle = \\frac{3}{2}|0\\rangle + 2i|1\\rangle \\)",
+                goal: { en: "Deduce the definitive probability that the system occupies the \\( |0\\rangle \\) charge state.", ms: "Deduksikan kebarangkalian muktamad bahawa sistem menduduki keadaan cas \\( |0\\rangle \\).", zh: "请推断系统占据 \\( |0\\rangle \\) 电荷状态的最终概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( \\frac{3}{2}\\langle 0| - 2i\\langle 1| \\)", "", ""), options: [
+                        { text: "\\( \\frac{3}{2}\\langle 0| - 2i\\langle 1| \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( \\frac{3}{2}\\langle 0| + 2i\\langle 1| \\)", correct: false, feedback: { en: "Flip 'i'.", ms: "Tukar 'i'.", zh: "反转 'i'。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 9/4 + 4 = 25/4 \\)", "", ""), options: [
+                        { text: "\\( 25/4 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 17/4 \\)", correct: false, feedback: { en: "4 = 16/4.", ms: "4 = 16/4.", zh: "4 = 16/4。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{25/4} = 2/5 \\)", "", ""), options: [
+                        { text: "\\( N = 2/5 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 5/2 \\)", correct: false, feedback: { en: "Divide by root.", ms: "Bahagi dengan punca.", zh: "除以根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |(3/2) * (2/5)|^2 = |3/5|^2 = 9/25 \\)", "", ""), options: [
+                        { text: "\\( P = 9/25 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( P = 3/5 \\)", correct: false, feedback: { en: "Square it.", ms: "Kuasa dua.", zh: "请平方。" } }
+                    ]}
+                ]
+            },
+            // Q18: Purely Real Phonon Matrix
+            {
+                equation: "\\( |M\\rangle = \\begin{pmatrix} 1 \\\\ -2 \\\\ 3 \\end{pmatrix} \\)",
+                goal: { en: "Normalise this vector to evaluate the theoretical probability of observing the second phonon mode.", ms: "Normalkan vektor ini untuk menilai kebarangkalian teori bagi memerhatikan ragam fonon kedua.", zh: "归一化该向量以评估观察到第二声子模式的理论概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("Real numbers don't change. Just transpose. \\( \\begin{pmatrix} 1 & -2 & 3 \\end{pmatrix} \\)", "", ""), options: [
+                        { text: "\\( \\begin{pmatrix} 1 & -2 & 3 \\end{pmatrix} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( \\begin{pmatrix} -1 & 2 & -3 \\end{pmatrix} \\)", correct: false, feedback: { en: "Don't flip reals.", ms: "Nyata tidak bertukar.", zh: "实数不反转符号。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 1 + 4 + 9 = 14 \\)", "", ""), options: [
+                        { text: "\\( 14 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 6 \\)", correct: false, feedback: { en: "Square them.", ms: "Kuasa dua.", zh: "要平方。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{14} \\)", "", ""), options: [
+                        { text: "\\( N = 1/\\sqrt{14} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/14 \\)", correct: false, feedback: { en: "Root.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |-2/\\sqrt{14}|^2 = 4/14 = 2/7 \\)", "", ""), options: [
+                        { text: "\\( P = 2/7 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( P = -2/7 \\)", correct: false, feedback: { en: "Positive.", ms: "Positif.", zh: "正数。" } }
+                    ]}
+                ]
+            },
+            // Q19: Golden Ratio / Roots Spinor
+            {
+                equation: "\\( |T\\rangle = \\begin{pmatrix} \\sqrt{5} \\\\ -2i \\end{pmatrix} \\)",
+                goal: { en: "Evaluate the exact mathematical expectation of the fermion being measured in the first component state.", ms: "Nilaikan jangkaan matematik yang tepat bagi fermion tersebut yang diukur dalam keadaan komponen pertama.", zh: "请评估该费米子在第一分量状态中被测量的确切数学期望。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( \\begin{pmatrix} \\sqrt{5} & 2i \\end{pmatrix} \\)", "", ""), options: [
+                        { text: "\\( \\begin{pmatrix} \\sqrt{5} & 2i \\end{pmatrix} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( \\begin{pmatrix} -\\sqrt{5} & 2i \\end{pmatrix} \\)", correct: false, feedback: { en: "Root is real.", ms: "Punca kuasa ialah nyata.", zh: "根号是实数。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( 5 + 4 = 9 \\)", "", ""), options: [
+                        { text: "\\( 9 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 1 \\)", correct: false, feedback: { en: "Check math.", ms: "Semak.", zh: "检查。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{9} = 1/3 \\)", "", ""), options: [
+                        { text: "\\( N = 1/3 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/9 \\)", correct: false, feedback: { en: "Root.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |\\sqrt{5}/3|^2 = 5/9 \\)", "", ""), options: [
+                        { text: "\\( P = 5/9 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( P = \\sqrt{5}/9 \\)", correct: false, feedback: { en: "Square root.", ms: "Kuasa dua punca.", zh: "根号要平方。" } }
+                    ]}
+                ]
+            },
+            // Q20: Decoherence / Open System
+            {
+                equation: "\\( |D\\rangle = (3+4i)|0\\rangle + 5|1\\rangle \\)",
+                goal: { en: "Calculate the final robust probability that the system survives in the \\( |0\\rangle \\) state.", ms: "Kirakan kebarangkalian teguh akhir bahawa sistem itu bertahan dalam keadaan \\( |0\\rangle \\).", zh: "请计算该系统在 \\( |0\\rangle \\) 态中存活的最终稳健概率。" },
+                steps: [
+                    { title: c1, instruction: d1, breakdown: buildBreakdown("\\( (3-4i)\\langle 0| + 5\\langle 1| \\)", "", ""), options: [
+                        { text: "\\( (3-4i)\\langle 0| + 5\\langle 1| \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( (3-4i)\\langle 0| - 5\\langle 1| \\)", correct: false, feedback: { en: "Real 5 stays.", ms: "5 kekal.", zh: "实数5不变。" } }
+                    ]},
+                    { title: c2, instruction: d2, breakdown: buildBreakdown("\\( (9+16) + 25 = 50 \\)", "", ""), options: [
+                        { text: "\\( 50 \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( 34 \\)", correct: false, feedback: { en: "(3+4i)(3-4i) = 25.", ms: "25.", zh: "25。" } }
+                    ]},
+                    { title: c3, instruction: d3, breakdown: buildBreakdown("\\( 1/\\sqrt{50} \\)", "", ""), options: [
+                        { text: "\\( N = 1/\\sqrt{50} \\)", correct: true, feedback: { en: "Correct.", ms: "Betul.", zh: "正确。" } },
+                        { text: "\\( N = 1/50 \\)", correct: false, feedback: { en: "Root.", ms: "Punca.", zh: "开根号。" } }
+                    ]},
+                    { title: c4, instruction: d4, breakdown: buildBreakdown("\\( |(3+4i)/\\sqrt{50}|^2 = 25/50 = 1/2 \\)", "", ""), options: [
+                        { text: "\\( P = 1/2 \\)", correct: true, feedback: { en: "Exactly 50%.", ms: "Tepat 50%.", zh: "精确50%。" } },
+                        { text: "\\( P = 9/50 \\)", correct: false, feedback: { en: "Magnitude squared of 3+4i is 25.", ms: "Magnitud kuasa dua bagi 3+4i ialah 25.", zh: "3+4i 绝对值的平方是 25。" } }
+                    ]}
+                ]
+            }
+        ];
+
+        const userProgress = problems.map(() => ({ currentStep: 0, completed: false, selectedOptions: {} }));
+        let currentProblemIndex = 0;
+
+        function init() {
+            updateStaticUI();
+            updateSim(); 
+            drawPhysics(); // Start 3D Engine Loop
+            document.getElementById('help-modal').addEventListener('click', function(e) { if (e.target === this) closeHelp(); });
+        }
+
+        function setLang(lang) {
+            document.body.className = document.body.className.replace(/show-lang-(en|ms|zh)/, 'show-lang-' + lang);
+            const btns = ['en', 'ms', 'zh'];
+            btns.forEach(b => {
+                const btnEl = document.getElementById('btn-lang-' + b);
+                btnEl.className = b === lang 
+                    ? "px-3 py-1 text-sm font-medium rounded-md bg-cyan-600 text-white transition-colors"
+                    : "px-3 py-1 text-sm font-medium rounded-md text-slate-400 hover:text-white hover:bg-slate-700 transition-colors";
+            });
+        }
+
+        function updateStaticUI() {
+            document.getElementById('ui-title').innerHTML = t(uiTranslations.title);
+            document.getElementById('ui-subtitle').innerHTML = t(uiTranslations.subtitle);
+            
+            document.getElementById('ui-sim-title').innerHTML = t(uiTranslations.simTitle);
+            document.getElementById('ui-sim-desc').innerHTML = t(uiTranslations.simDesc);
+            document.getElementById('ui-sim-amp0').innerHTML = t(uiTranslations.simAmp0);
+            document.getElementById('ui-sim-amp1').innerHTML = t(uiTranslations.simAmp1);
+            document.getElementById('ui-sim-phase').innerHTML = t(uiTranslations.simPhase);
+            document.getElementById('ui-sim-toggle').innerHTML = t(uiTranslations.simToggle);
+            document.getElementById('ui-sim-measure').innerHTML = t(uiTranslations.simMeasure);
+            document.getElementById('ui-sim-proceed').innerHTML = t(uiTranslations.simProceed);
+            
+            document.getElementById('ui-tab-bloch').innerHTML = t(uiTranslations.tabBloch);
+            document.getElementById('ui-tab-wave').innerHTML = t(uiTranslations.tabWave);
+            document.getElementById('ui-tab-sg').innerHTML = t(uiTranslations.tabSg);
+
+            document.getElementById('ui-current-state').innerHTML = t(uiTranslations.currentState);
+            document.getElementById('ui-complete-title').innerHTML = t(uiTranslations.completeTitle);
+            document.getElementById('ui-complete-desc').innerHTML = t(uiTranslations.completeDesc);
+            document.getElementById('ui-btn-prev').innerHTML = t(uiTranslations.prevBtn);
+            document.getElementById('ui-btn-next').innerHTML = t(uiTranslations.nextBtn);
+            document.getElementById('ui-help-title').innerHTML = t(uiTranslations.helpTitle);
+            document.getElementById('ui-help-close').innerHTML = t(uiTranslations.helpClose);
+            renderProblemNav();
+        }
+
+        function startAssessment() {
+            const simSection = document.getElementById('simulation-section');
+            simSection.style.opacity = '0';
+            setTimeout(() => {
+                simSection.style.display = 'none';
+                const quizSection = document.getElementById('assessment-section');
+                const nav = document.getElementById('problem-nav');
+                const prog = document.getElementById('progress-wrapper');
+                
+                quizSection.classList.remove('hidden');
+                void quizSection.offsetWidth;
+                quizSection.style.opacity = '1';
+                nav.classList.remove('opacity-0', 'pointer-events-none');
+                prog.classList.remove('opacity-0');
+                
+                loadProblem();
+            }, 500);
+        }
+
+        function renderProblemNav() {
+            const navContainer = document.getElementById('problem-nav');
+            navContainer.innerHTML = '';
+            problems.forEach((_, idx) => {
+                const isActive = idx === currentProblemIndex;
+                const isCompleted = userProgress[idx].completed;
+                const baseClasses = "px-4 py-2 rounded-lg font-medium transition-all duration-200 border flex items-center gap-2 text-sm shrink-0";
+                const activeClasses = isActive ? "bg-cyan-600 border-cyan-500 text-white shadow-[0_0_10px_rgba(6,182,212,0.3)]" : "bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white";
+                const checkIcon = isCompleted ? `<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>` : '';
+
+                navContainer.innerHTML += `<button onclick="jumpToProblem(${idx})" class="${baseClasses} ${activeClasses}">${t(uiTranslations.problemLabel)} ${idx + 1} ${checkIcon}</button>`;
+            });
+            const total = problems.length;
+            const completed = userProgress.filter(p => p.completed).length;
+            document.getElementById('progress-bar').style.width = (total === 0 ? 0 : (completed / total) * 100) + '%';
+        }
+
+        function jumpToProblem(idx) { currentProblemIndex = idx; loadProblem(); }
+        function prevProblem() { currentProblemIndex = (currentProblemIndex - 1 + problems.length) % problems.length; loadProblem(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+        function nextProblem() { currentProblemIndex = (currentProblemIndex + 1) % problems.length; loadProblem(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+        function loadProblem() {
+            const problem = problems[currentProblemIndex];
+            const progress = userProgress[currentProblemIndex];
+            renderProblemNav();
+            
+            const navBtns = document.getElementById('problem-nav').children;
+            if(navBtns[currentProblemIndex]) navBtns[currentProblemIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+
+            document.getElementById('ui-problem-number').innerHTML = `${t(uiTranslations.problemLabel)} ${currentProblemIndex + 1} / ${problems.length}`;
+            document.getElementById('problem-display').innerHTML = problem.equation;
+            document.getElementById('problem-goal').innerHTML = t(problem.goal);
+            
+            const container = document.getElementById('steps-container');
+            container.innerHTML = '';
+            
+            if (progress.completed) {
+                document.getElementById('completion-container').classList.remove('hidden');
+                document.getElementById('help-button').style.display = 'none';
+            } else {
+                document.getElementById('completion-container').classList.add('hidden');
+                if(!document.getElementById('assessment-section').classList.contains('hidden')) {
+                     document.getElementById('help-button').style.opacity = '1';
+                     document.getElementById('help-button').style.pointerEvents = 'auto';
+                }
+            }
+
+            problem.steps.forEach((step, index) => {
+                const isUnlocked = index <= progress.currentStep;
+                const isCompletedStep = index < progress.currentStep;
+                const isActiveStep = index === progress.currentStep && !progress.completed;
+                
+                let cardClasses = 'bg-slate-800 border rounded-xl p-6 step-card ';
+                if (!isUnlocked) cardClasses += 'border-slate-700 locked';
+                else if (isActiveStep) cardClasses += 'border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.15)]';
+                else cardClasses += 'border-slate-600';
+
+                const optionsHTML = step.options.map((opt, optIdx) => {
+                    let btnClasses = "option-btn bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white py-4 px-4 rounded-lg text-center ";
+                    let isDisabled = (!isUnlocked || isCompletedStep);
+                    if (isCompletedStep && progress.selectedOptions[index] === optIdx) btnClasses += "selected-correct";
+                    return `<button onclick="handleSelection(${index}, ${optIdx})" class="${btnClasses}" id="btn-${index}-${optIdx}" ${isDisabled ? 'disabled' : ''}>${opt.text}</button>`;
+                }).join('');
+
+                let fbHTML = '', fbClasses = "mt-4 text-sm font-medium rounded-lg p-3 ";
+                if (isCompletedStep) {
+                    fbHTML = `✓ ${t(step.options[progress.selectedOptions[index]].feedback)}`;
+                    fbClasses += "bg-emerald-900/50 text-emerald-400 border border-emerald-800 block";
+                } else fbClasses += "hidden";
+
+                container.insertAdjacentHTML('beforeend', `
+                    <div id="step-card-${index}" class="${cardClasses}">
+                        <div class="flex items-center mb-4">
+                            <div class="bg-cyan-950 text-cyan-400 font-bold w-8 h-8 rounded-full flex items-center justify-center mr-3 border border-cyan-800">${index + 1}</div>
+                            <h3 class="text-lg font-semibold text-white">${t(step.title)}</h3>
+                        </div>
+                        <p class="text-slate-300 mb-5 text-sm md:text-base">${t(step.instruction)}</p>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="options-${index}">${optionsHTML}</div>
+                        <div id="feedback-${index}" class="${fbClasses}">${fbHTML}</div>
+                    </div>
+                `);
+            });
+            renderMathInElement(document.body, { delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\(', right: '\\)', display: false}, {left: '\\[', right: '\\]', display: true}], throwOnError : false });
+        }
+
+        function handleSelection(stepIdx, optionIdx) {
+            const progress = userProgress[currentProblemIndex];
+            if (stepIdx !== progress.currentStep) return;
+            const problem = problems[currentProblemIndex], step = problem.steps[stepIdx], selectedOption = step.options[optionIdx];
+            const buttons = document.getElementById(`options-${stepIdx}`).querySelectorAll('button'), feedbackEl = document.getElementById(`feedback-${stepIdx}`);
+
+            buttons.forEach(btn => { btn.classList.remove('selected-correct', 'selected-wrong'); btn.disabled = true; });
+            const clickedBtn = document.getElementById(`btn-${stepIdx}-${optionIdx}`);
+
+            if (selectedOption.correct) {
+                clickedBtn.classList.add('selected-correct');
+                feedbackEl.innerHTML = `✓ ${t(selectedOption.feedback)}`;
+                feedbackEl.className = "mt-4 text-sm font-medium rounded-lg p-3 bg-emerald-900/50 text-emerald-400 border border-emerald-800 block";
+                
+                progress.selectedOptions[stepIdx] = optionIdx;
+                progress.currentStep++;
+                
+                if (progress.currentStep >= problem.steps.length) {
+                    progress.completed = true; renderProblemNav();
+                    document.getElementById('completion-container').classList.remove('hidden'); document.getElementById('help-button').style.display = 'none';
+                    setTimeout(() => document.getElementById('completion-container').scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+                } else {
+                    const nextCard = document.getElementById(`step-card-${progress.currentStep}`);
+                    nextCard.classList.remove('locked', 'border-slate-700'); nextCard.classList.add('border-cyan-500/50', 'shadow-[0_0_15px_rgba(6,182,212,0.15)]');
+                    const prevCard = document.getElementById(`step-card-${stepIdx}`);
+                    prevCard.classList.remove('border-cyan-500/50', 'shadow-[0_0_15px_rgba(6,182,212,0.15)]'); prevCard.classList.add('border-slate-600');
+                    document.getElementById(`options-${progress.currentStep}`).querySelectorAll('button').forEach(btn => btn.disabled = false);
+                    setTimeout(() => nextCard.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+                }
+            } else {
+                clickedBtn.classList.add('selected-wrong');
+                feedbackEl.innerHTML = `✗ ${t(selectedOption.feedback)}`;
+                feedbackEl.className = "mt-4 text-sm font-medium rounded-lg p-3 bg-red-900/50 text-red-400 border border-red-800 block";
+                setTimeout(() => { buttons.forEach(btn => { if(!btn.classList.contains('selected-wrong')) btn.disabled = false; }); }, 500);
+            }
+            renderMathInElement(document.body, { delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\(', right: '\\)', display: false}], throwOnError: false });
+        }
+
+        function showHelp() {
+            const progress = userProgress[currentProblemIndex];
+            if (progress.currentStep >= problems[currentProblemIndex].steps.length) return; 
+            const step = problems[currentProblemIndex].steps[progress.currentStep];
+            document.getElementById('help-content').innerHTML = `<div class="text-slate-200 text-lg mb-4 font-semibold border-b border-slate-700 pb-2">${t(step.title)}</div><div class="text-slate-300 text-base leading-relaxed">${t(step.breakdown)}</div>`;
+            document.getElementById('help-modal').classList.remove('hidden'); document.getElementById('help-modal').classList.add('flex');
+            renderMathInElement(document.getElementById('help-content'), { delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\(', right: '\\)', display: false}], throwOnError : false });
+        }
+        function closeHelp() { document.getElementById('help-modal').classList.add('hidden'); document.getElementById('help-modal').classList.remove('flex'); }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
